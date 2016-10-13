@@ -1,0 +1,331 @@
+
+/* Set height for map containers in order to actually render the map. */
+html, body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+/* Containers for the map and the sidebar */
+#locator-container, div.tab-content {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+#map {
+	height: 66%;
+	width: 80%;
+	float: left;
+}
+
+/* Geochart elements */
+#geochart-container {
+	display: none;
+	/*position: relative;*/
+	height: 66%;
+	width: 79%;
+	/*margin-left: 50px;*/
+	float: left;
+	background-color: #91CEF3;
+}
+
+#geochart {
+	margin-left: 35px;
+}
+
+#control-overlay {
+	position: absolute;
+    top: 0px;  /* chart container top  */
+    left: 656px; /* chart container left */
+}
+
+#trend-search-overlay {
+	position: absolute;
+    top: 10px;
+    right: 420px;
+    font-family: Roboto;
+	font-size: 15px;
+	font-weight: 300;
+	padding-left: 12px;
+	text-overflow: ellipsis;
+	width: 300px;
+	height: 32px;
+}
+
+#worldwide-overlay {
+	position: absolute;
+    top: 60px;
+    right: 420px;
+    padding: 5px;
+    font-family: Roboto;
+    font-size: 12px;
+	font-weight: 300;
+	text-align: center;
+}
+
+#worldwide-overlay:hover {
+	cursor: pointer;
+	background-color: rgb(226, 220, 220);
+}
+
+/* Left sidebar for tweets */
+#tweet-container {
+	height: 100%;
+	width: 20%;
+	margin-left: 80%;
+}
+
+#tweets {
+	height: 100%;
+	overflow-y: auto;
+}
+
+p.error {
+	padding-left: 10px;
+	padding-top: 20px;
+	font-size: 24px;
+}
+
+p.about {
+	font-size: 18px;
+}
+
+.about {
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+#tweets > ol {
+	margin-right: 40px;
+}
+
+.tweet-metadata {
+	height: 35px;
+	padding-left: 20px;
+}
+
+.marker-icon {
+	height: 30px;
+	float: left;
+	padding-right: 10px;
+}
+
+.meta-icon {
+	height: 25px;
+	padding-right: 30px;
+	float:right;
+}
+
+.meta-text {
+	float: left;
+	padding-top: 10px;
+	padding-right: 10px;
+}
+
+.marker-icon:hover {
+	cursor: pointer;
+}
+
+.meta-icon:hover {
+	cursor: pointer;
+}
+
+.tweet-card {
+	border-bottom: solid 2px;
+}
+
+/* Bottom bar for tweet timeline details */
+#detail-bar {
+	height: 34%;
+	width: 80%;
+	float: left;
+	border-top: solid 2px;
+	padding-top: 10px;
+}
+
+#trends-bar {
+	display: none;
+	height: 34%;
+	width: 80%;
+	float: left;
+	border-top: solid 2px;
+}
+
+#user-info {
+	width: 20%;
+	float: left;
+	padding: 20px 20px 0px 20px;
+}
+
+#username {
+	font-size: 22px;
+}
+
+#tweet-card {
+	width: 40%;
+	float: left;
+}
+
+#stats {
+	width: 20%;
+	float: left;
+	padding-top: 20px;
+}
+
+.stats-header {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+#fetch-data {
+	color: #337ab7;
+}
+
+#fetch-data:hover {
+	cursor: pointer;
+}
+
+#chart-container {
+	width: 20%;
+	padding-left: 20px;
+	padding-top: 20px;
+	float: left;
+}
+
+#chart-container > p {
+	padding-left: 55px;
+}
+
+#source-chart {
+	width: 100%;
+	height: 100%;
+}
+
+#fetch-timeline {
+	display: none;
+}
+
+#loader {
+	display: none;
+	position: absolute;
+	left: 91%;
+	top: 50%;
+	z-index: 1;
+	width: 100px;
+	height: 100px;
+	margin: -75px 0 0 -75px;
+	border: 16px solid #f3f3f3;
+	border-radius: 50%;
+	border-top: 16px solid #3498db;
+	-webkit-animation: spin 2s linear infinite;
+	animation: spin 2s linear infinite;
+}
+
+/* Map and page control elements. */
+#searchbox {
+	display: none;
+	font-family: Roboto;
+	font-size: 15px;
+	font-weight: 300;
+	margin-left: 12px;
+	margin-right: 12px;
+	padding: 0 11px 0 13px;
+	text-overflow: ellipsis;
+	width: 300px;
+	margin-top: 10px;
+	height: 32px;
+}
+
+#legend {
+	display: none;
+	padding: 0 10px 10px 10px;
+	margin-right: 12px;
+	cursor: default;
+}
+
+#legend > div {
+	padding-bottom: 7px;
+}
+
+#app-control {
+	display: none;
+	width: 212px;
+	font-family: Roboto;
+	font-size: 12px;
+	font-weight: 300;
+	margin-top:10px;
+	cursor: pointer;
+}
+
+/* Change background to grey on hover */
+#app-control > div:hover {
+	background-color: rgb(226, 220, 220);
+}
+
+#locator-button {
+	float: left;
+	width: 70px;
+	padding: 5px;
+	text-align: center;
+	border-right-style: groove;
+	border-right: 1px solid grey;
+	font-weight: 900;
+}
+
+#trends-button {
+	float:left;
+	width: 70px;
+	padding: 5px;
+	text-align: center;
+	border-right-style: groove;
+	border-right: 1px solid grey;
+}
+
+#about-button {
+	float:left;
+	width: 70px;
+	padding: 5px;
+	text-align: center;
+}
+
+.controls {
+	background-color: white;
+	border: 1px solid transparent;
+	border-radius: 2px 0 0 2px;
+	box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	outline: none;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Animations */
+@-webkit-keyframes spin {
+	0% { -webkit-transform: rotate(0deg); }
+	100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+	0% { transform: rotate(0deg); }
+	100% { transform: rotate(360deg); }
+}
+
+/* Add animation to the sidebar */
+.animate-bottom {
+	position: relative;
+	-webkit-animation-name: animatebottom;
+	-webkit-animation-duration: 1s;
+	animation-name: animatebottom;
+	animation-duration: 1s
+	}
+
+@-webkit-keyframes animatebottom {
+	from { bottom:-100px; opacity:0 }
+	to { bottom:0px; opacity:1 }
+}
+
+@keyframes animatebottom {
+	from{ bottom:-100px; opacity:0 }
+	to{ bottom:0; opacity:1 }
+}
+

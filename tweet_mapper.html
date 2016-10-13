@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+
+<!-- Shows tweets on a Google map and shows Twitter trending topics in a world chart.
+In tweet mapping mode user can either
+  a) click a location on the map and find tweets near that location, or
+  b) plot a user's recent timeline on the map.
+Some additional tweet information is shown on the lower part of the page.
+
+In trend analyzer mode users can
+  a) display a list of trending topics in a given country, or
+  b) display a list of countries where a given topic is trending.
+Tweet volumes are only shown for worldwide data, as the API doesn't seem to track
+country specific values. Perhaps thisl will change someday, who knows?
+
+12.10.2016
+-->
+
+<html>
+  <head>
+    <title>Tweet Mapper</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="tweet_mapper.css">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon.ico">
+
+
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
+    <!-- Google Charts -->
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    
+   
+    <script src="./js/locator.js" defer></script>  <!-- load locator script -->
+    <script src="./js/trends.js" defer></script>  <!-- trend script, should come after locator (does it actually matter?) -->
+    <script src="./js/pageinit.js" defer></script>
+  </head>
+
+  <body>
+    <!-- Bootstrap container for sub pages -->
+    <div class="tab-content">
+
+      <div id="locator-container" class="tab-pane fade in active">
+
+        <!-- An input field for entering a username for the search and a room for a map legend.
+        These are initially hidden and placed on the map when it gets initialized. -->  
+        <input id="searchbox" class="controls" type="text" placeholder="@username OR username">
+        <div id="legend" class="controls">
+          <h4>Legend</h4>
+        </div>
+
+        <!-- Control bar for switching between tweets locator and trend anayler -->
+        <div id="app-control" class="controls">
+          <div id="locator-button" name="locator">Locator</div>
+          <div id="trends-button" name="trends">Trends</div>
+          <div id="about-button">Show help</div>
+        </div>
+
+        <!-- Reserve room for the map, a sidebar for tweets to show
+        and a lower bar for account statistics. -->
+        <div id="map"></div>
+        <div id="geochart-container">
+        	<div id="geochart"></div>
+        	<div id="control-overlay"></div>
+          <div id="worldwide-overlay" class="controls">Worldwide</div>
+          <input id="trend-search-overlay" class="controls" type="text" placeholder="#trend OR searchterm">
+        </div>
+
+        <div id="detail-bar">
+          <div id="user-info">
+          	<a id="username">@username</a>
+          	<p id="account-description">description</p>
+          	<a id="user-url">url</a>
+          	<p id="user-location">location:</p>
+          </div>
+          <div id="tweet-card">&nbsp</div>
+          <div id="stats">
+          	<p class="stats-header">Timeline statistics</p>
+          	<p id="follower-count">Followers:</p>
+          	<p id="tweet-rate">Average tweets/day:</p>
+          	<p id="read-count">Recently received retweets and likes:</p>
+          	<a id="fetch-timeline"
+ 				href="#" onclick="fetchTimeline(_currentUser);return false;">Fetch timeline to fill missing data</a>
+          </div>
+          <div id="chart-container">
+          	<p class="stats-header">Tweet source</p>
+          	<div id="source-chart"></div>
+          </div>
+        </div>
+
+        <div id="trends-bar"></div>
+
+        <div id="tweet-container">
+          <div id="loader"></div>
+          <div id="tweets" class="animate-bottom"></div>
+        </div>
+      <!-- #locator -->
+      </div>
+
+    <!-- tab-content -->
+    </div>
+
+
+
+    <!-- Load Twitter and Google widgets -->
+    <script id="twitter-wjs" type="text/javascript" async defer src="//platform.twitter.com/widgets.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDid9zduhaVFjK6mmolZgJ9PCHkMtJxd18&callback=init" async defer></script>
+  </body>
+</html>
+
