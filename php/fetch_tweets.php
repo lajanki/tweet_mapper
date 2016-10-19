@@ -1,6 +1,8 @@
 <?php
 
 // Functions for searching tweets by coordinates and user timelines using bearer tokens and application authentication.
+// Modeled after Jon Hurlocks application only oauth library,
+// https://github.com/jonhurlock/Twitter-Application-Only-Authentication-OAuth-PHP
 
 
 $lat = $_GET["lat"];
