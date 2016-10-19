@@ -57,6 +57,7 @@ function init() {
   aboutButton.addEventListener("click", about);
 }
 
+
 /* Create the map and initialize it to Tweet locator. */
 function initMap() {
   // Create a map object and add it to the "map" div
@@ -173,26 +174,6 @@ function setMode(newMode) {
 /************************************************************************
 * Helper functions *
 *******************/
-
-/* Add an entry to geo.db */
-function dbAdd(address, lat, long) {
-  console.log("Adding " + address + ": " + "(" + lat + ", " + long + ") to db");
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange = function() {
-    console.log(this.readyState);
-    if (this.readyState == 4 && this.status == 200) {
-      var response_str = this.responseText;
-      console.log("success!");
-      console.log(response_str);
-    }
-    else if (this.readyState == 4 && this.status != 200) {
-      console.log("HIP!");
-    }
-    xmlhttp.open("GET", "./geolocate_db.php?loc=" + address + "&lat=" + lat + "&long=" + long, true);
-    xmlhttp.send();
-  }
-}
-
 
 /* Return the marker label for this tweet. Tweets from the same
 user should have the same label. */
@@ -328,4 +309,181 @@ function truncate(str, len = 16) {
 /* Validate a Twitter username. */
 function validTwitteUser(screen_name) {
     return /^[a-zA-Z0-9_]{1,15}$/.test(screen_name);
+}
+
+/* Append an element to a counter.
+Args:
+  container (Object): an associative array for elements to keep count of
+  key (string): the key to add or increment.
+*/
+function incrementKey(container, key) {
+  if (key in container) {
+    container[key] += 1;
+  }
+  else {
+    container[key] = 1;
+  }
+}
+
+/* Escape html characters. */
+function escapeHtml(text) {
+  var map = {
+    //'&': '&amp;',  //&s are already escaped in the tweet text
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+
+  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+
+
+/* Format a <blockquote> string which the Twitter widget can render to a proper tweet.
+Twitter API's statuses/oembed endpoint only supports fetching one embed code at a time,
+fetching 20 embed codes in a loop is too slow.
+
+Notes:
+ * Embed codes are of the form
+    <blockquote class="twitter-tweet" data-lang="fi"><p lang="en" dir="ltr">[FCM] Ask Uncle Colin: Am I working too hard?: <a href="https://t.co/xfYUN3X71C">https://t.co/xfYUN3X71C</a></p>
+    &mdash; Colin Beveridge (@icecolbeveridge) <a href="https://twitter.com/icecolbeveridge/status/788666135843438592">19. lokakuuta 2016</a></blockquote>
+    <script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
+   It appears only the final <a> tag (and the wrapping <blockquote>) linking to the tweet is actually needed for the rendering to work.
+   The rest is a shell to display incase rendering doesn't work.
+ * This function attempts to mimic the original behaviour.
+
+Transformation rules:
+  1 escape html characters
+  2 "↵"" => <br>
+  3 url => <a href=url>url</a>
+  4 #goal => <a href="https://twitter.com/hashtag/goal?src=hash">#goal</a>
+  5 @Rsl2278 => <a href="https://twitter.com/Rsl2278">@Rsl2278</a>
+  6 media => <a href="[text url: https://t.co/[id]]">pic.twitter.com/[id]</a> (media elements are just before the suffix)
+  7 suffix => &mdash; name (@screen_name) <a href="https://twitter.com/screen_name/status/tweet_id">October 19, 2016</a>
+
+  eg:
+  formatEmbed("Sieben Fragen, die Putin endlich beantworten muss https://t.co/7rcuvrfcVh https://t.co/1hfKy0PW1Q")
+
+    "<blockquote class="twitter-tweet" data-lang="en"><p lang="de" dir="ltr">Sieben Fragen, die Putin endlich beantworten
+    muss <a href="https://t.co/7rcuvrfcVh">https://t.co/7rcuvrfcVh</a> <a href="https://t.co/1hfKy0PW1Q">pic.twitter.com/1hfKy0PW1Q</a></p>
+    &mdash; WELT (@welt) <a href="https://twitter.com/welt/status/788699295683870720">October 19, 2016</a></blockquote>"
+*/
+function formatEmbed(tweet) {
+  var text = escapeHtml(tweet["text"]);   // escape html characters
+  text.replace("↵", "<br>");
+  var split = text.split(" ");
+
+  for (var i = 0; i < split.length; i++) {
+    var word = split[i];
+
+    // Check for links, excluding the last word. If last word is an url treat it as picture.
+    if (word.startsWith("http")) {
+      split[i] = "<a href=\"" + word + "\">" + word + "</a>";
+    } 
+
+    // User mentions: link to user page:
+    // <a href="https://twitter.com/PanthersTopCats">@PanthersTopCats</a>
+    else if (word.startsWith("@")) {
+      var screenName = word.substring(1);
+      split[i] = "<a href=\"https://twitter.com/" + screenName + "\">" + word + "</a>";
+    }
+
+    // Hashtags:
+    // <a href="https://twitter.com/hashtag/IndyAMACircleSocial?src=hash">#IndyAMACircleSocial</a>
+    else if (word.startsWith("#")) {
+      var tag = word.substring(1);
+      split[i] = "<a href=\"https://twitter.com/hashtag/" + tag +"?src=hash\">" + word + "</a>";
+    }
+  }
+
+  /*
+  // TODO: media links
+  var media_url = "";
+  // Check if there are any media related to the tweet
+  if ("media" in tweet["entities"]) {
+    for (var i = 0; i < tweet["entities"]["media"].length; i++) {
+      var item = tweet["entities"]["media"][i];
+
+      //media_url += 
+      // url for href,
+      // display_url for display value
+    }
+  }
+  */
+
+  // Join the text back to a string
+  text = split.join(" ");
+
+  // Format the suffix:
+  // &mdash; [name] ([@screen_name]) <a href="https://twitter.com/[screen_name]/status/[tweet_id]">October 19, 2016</a>
+  // Get the month name from the timestamp
+  var createdAt = tweet["created_at"];
+  var monthNames = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  var d = new Date(createdAt);
+  var month = monthNames[d.getMonth()];
+  var timestamp = month + " " + d.getDate() + ", " + d.getFullYear();
+
+  var suffix = "</p>&mdash; " + tweet["user"]["name"] + " (@" + tweet["user"]["screen_name"] + ")\
+    <a href=\"https://twitter.com/" + tweet["user"]["screen_name"] + "/status/" + tweet["id_str"] + "\">" + timestamp + "</a></blockquote>";
+
+  // Set prefix and data language to english manully
+  var prefix = "<blockquote class=\"twitter-tweet\" data-lang=\"en\"><p lang=\"en\" dir=\"ltr\">"
+  return prefix + text + suffix;
+}
+
+/* Add embed codes to a list of tweet objects. */
+function addEmbeds(tweets) {
+  for (var i = 0; i < tweets.length; i++) {
+    tweets[i]["embed"] = formatEmbed(tweets[i]);
+  }
+  return tweets;
+}
+
+/* Check if a tweet in a list of tweets is a retweet and change it to the parent.*/
+function traceRetweets(tweets) {
+  var ids = [];
+  var uniques = [];
+  for (var i = 0; i < tweets.length; i++) {
+    var tweet = tweets[i];
+
+    if ("retweeted_status" in tweet) {
+      tweet = tweet["retweeted_status"];
+
+      // Due to the parent tracing, we may have already seen this tweet.
+      // Only add it to the list of tweets if not seen before
+      if (ids.indexOf(tweet["id_str"]) == -1) {
+        uniques.push(tweet);
+        ids.push(tweet["id_str"]);
+      }
+    }
+
+    // Not a retweet, add to the list of unique tweets
+    else {
+      uniques.push(tweet);
+    }
+  }
+  return uniques;
+}
+
+
+/* Add an entry to geo.db */
+function dbAdd(address, lat, long) {
+  console.log("Adding " + address + ": " + "(" + lat + ", " + long + ") to db");
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.onreadystatechange = function() {
+    console.log(this.readyState);
+    if (this.readyState == 4 && this.status == 200) {
+      var response_str = this.responseText;
+      console.log("success!");
+      console.log(response_str);
+    }
+    else if (this.readyState == 4 && this.status != 200) {
+      console.log("HIP!");
+    }
+    xmlhttp.open("GET", "./geolocate_db.php?loc=" + address + "&lat=" + lat + "&long=" + long, true);
+    xmlhttp.send();
+  }
 }

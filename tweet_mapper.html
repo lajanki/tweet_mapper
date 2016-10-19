@@ -32,9 +32,9 @@ country specific values. Perhaps thisl will change someday, who knows?
     <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
     
    
-    <script src="./js/locator.js" defer></script>  <!-- load locator script -->
-    <script src="./js/trends.js" defer></script>  <!-- trend script, should come after locator (does it actually matter?) -->
-    <script src="./js/pageinit.js" defer></script>
+    <script src="./js/locator.js" ></script>  <!-- load locator script -->
+    <script src="./js/trends.js" ></script>  <!-- trend script, should come after locator (does it actually matter?) -->
+    <script src="./js/pageinit.js" ></script>
   </head>
 
   <body>
@@ -52,7 +52,7 @@ country specific values. Perhaps thisl will change someday, who knows?
 
         <!-- Control bar for switching between tweets locator and trend anayler -->
         <div id="app-control" class="controls">
-          <div id="locator-button" name="locator">Locator</div>
+          <div id="locator-button" name="locator">Mapper</div>
           <div id="trends-button" name="trends">Trends</div>
           <div id="about-button">Show help</div>
         </div>
@@ -105,7 +105,7 @@ country specific values. Perhaps thisl will change someday, who knows?
 
     <!-- Load Twitter and Google widgets -->
     <script id="twitter-wjs" type="text/javascript" async defer src="//platform.twitter.com/widgets.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDid9zduhaVFjK6mmolZgJ9PCHkMtJxd18&callback=init" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDid9zduhaVFjK6mmolZgJ9PCHkMtJxd18&callback=init" defer></script>
   </body>
 </html>
 

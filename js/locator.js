@@ -4,7 +4,6 @@
 
 
 
-
 /************************************************************************
 * Global variables *
 ********************/
@@ -60,16 +59,22 @@ function fetchTweets(lat, lng) {
   xmlhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
       var response_str = this.responseText;
-      var response = JSON.parse(response_str);
-      console.log(response);
+      var tweets = JSON.parse(response_str);
 
+      // Trace retweets
+      tweets = traceRetweets(tweets);
+      // Add embed codes
+      tweets = addEmbeds(tweets);
+
+      
       // Empty the sidebar and add the new tweets to it
       document.getElementById("tweets").innerHTML = null;
-      displayTweets(response);
+      displayTweets(tweets);
 
       // Hide the loader and show tweets,
       // use a small delay to allow the tweets to be fully rendered
       setTimeout(hideLoader, 410)
+      
     }
     else if (this.status == 500) {
       setMessage("Something went wrong :( The server encoutered an internal error with the following message:<br/>" +
@@ -107,19 +112,21 @@ function fetchTimeline(user) {
   xmlhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
       var response_str = this.responseText;
-      var response = JSON.parse(response_str);
+      var timeline = JSON.parse(response_str);
       _timeline["user"] = user;
-      _timeline["timeline"] = response;
+      _timeline["timeline"] = timeline;
       _currentUser = user;
-      console.log(response);
+
+      // Add embed codes
+      timeline = addEmbeds(timeline);
 
       // Compute timeline statistics and display in the detail bar
-      fillTimelineDetails(response);
+      fillTimelineDetails(timeline);
       _missingDetails = false;
 
       // Clear the sidebar and show new content
       document.getElementById("tweets").innerHTML = null;
-      displayTimeline(response);
+      displayTimeline(timeline);
       setTimeout(hideLoader, 410);
     }
     else if (this.status == 500) {
@@ -130,6 +137,8 @@ function fetchTimeline(user) {
   xmlhttp.open("GET", "./php/fetch_tweets.php?user="+user, true);
   xmlhttp.send();
 }
+
+
 
 /* A wrapper to reading the username from the searchBox and passing
 it to fetchTimeLine().*/
@@ -156,9 +165,8 @@ function getUserValue(event) {
 
 
 /* Compute statistics on recent tweets posted by the given user:
-1. total number of likes + RTs (tweets read measure)
+1. total number of likes + RTs (tweets read measure),
 2. tweet sources
-3. most liked/most recent tweet
 Arg:
   timeline (Array): a timeline of tweets as an array of tweet objects
 */
@@ -166,20 +174,61 @@ function computeTimelineDetails(timeline) {
   var likes = 0;
   var rts = 0;
   var sources = {};
+  var hashtags = {};
+  var mentions = {};
+  var urls = {};
+
   for (var i = 0; i < timeline.length; i++) {
+    // likes and RTs
     var tweet = timeline[i];
     likes += tweet["favorite_count"];
     rts += tweet["retweet_count"];
 
+    // sources
     var source = tweet["source"];
-    if (source in sources) {
-      sources[source] += 1;
+    incrementKey(sources, source);
+    
+    //console.log(tweet);
+    // user mentions
+    var entitiesMentions = tweet["entities"]["user_mentions"];
+    for (var j = 0; j < entitiesMentions.length; j++) {
+      var mention = entitiesMentions[j]["screen_name"];
+      if (mention) {
+        incrementKey(mentions, mention);
+      }
     }
-    else {
-      sources[source] = 1;
+     
+    // hashtags
+    var entitiesHashtags = tweet["entities"]["hashtags"];
+    for (var j = 0; j < entitiesHashtags.length; j++) {
+      var hashtag = entitiesHashtags[j]["text"];
+      if (hashtag) {
+        incrementKey(hashtags, hashtag);
+      }
+    }
+
+    // urls
+    var entitiesUrls = tweet["entities"]["urls"];
+    for (var j = 0; j < entitiesUrls.length; j++) {
+      var url = entitiesUrls[j]["display_url"];
+      if (url) {
+        // split by "/" to get the domain name
+        url = url.split("/")[0];
+        incrementKey(urls, url);
+      }
     }
   }
-  return {"likes": likes, "rts":rts, "sources": sources}
+
+  var stats = {
+    "likes": likes,
+    "rts": rts,
+    "sources": sources,
+    "hashtags": hashtags,
+    "mentions": mentions,
+    "urls": urls
+  }
+
+  return stats;
 }
 
 /* Fill retweets+likes received and tweet source chart to teh detail bar.*/
@@ -188,8 +237,42 @@ function fillTimelineDetails(timeline) {
   createSourceChart(stats["sources"]);
   var likes = formatThousands(stats["likes"] + stats["rts"]);
   document.getElementById("read-count").innerHTML = "Recently received retweets and likes: " + likes;
-  console.log(stats);
+  console.log("stats:", stats);
 }
+
+/************************************************************************
+* Twitter Widget Factory functions *
+***********************************/
+
+/* Display a timeline, see
+https://dev.twitter.com/web/javascript/creating-widgets#create-timeline */
+function factoryTimeline(screenName) {
+  document.getElementById("tweets").innerHTML = null;
+
+  twttr.widgets.createTimeline({
+    sourceType: "profile",
+    screenName: screenName
+  },
+  document.getElementById("tweets"),
+  {
+    width: '450',
+    height: '700',
+  }).then(function (el) {
+    console.log("Embedded a timeline.")
+  });
+}
+
+/* Show a timeline of likes of the user. */
+function factoryLikes(screenName) {
+  document.getElementById("tweets").innerHTML = null;
+
+  twttr.widgets.createTimeline({
+    sourceType: "likes",
+    screenName: screenName
+  },
+  document.getElementById("tweets"));
+}
+
 
 /************************************************************************
 * Show tweets *
@@ -210,67 +293,76 @@ function displayTweets(tweetData) {
     setMessage("No tweets found near this location.");
   }
 
-  for (i=0; i<tweetData.length; i++) {
-    tweet = tweetData[i];
-    var user_id = tweet["user"]["id_str"];
-    var screen_name = tweet["user"]["screen_name"];
-    var label;
-    var color;
+  try {
+    for (i=0; i<tweetData.length; i++) {
+      tweet = tweetData[i];
+      var user_id = tweet["user"]["id_str"];
+      var screen_name = tweet["user"]["screen_name"];
+      var label;
+      var color;
 
-    // Log tweet url for debugging purposes
-    var url = "http://twitter.com/" + tweet["user"]["screen_name"] + "/status/" + tweet["id_str"];
-    //console.log("tweet: " + url);
+      // Log tweet url for debugging purposes
+      var url = "http://twitter.com/" + tweet["user"]["screen_name"] + "/status/" + tweet["id_str"];
+      //console.log("tweet: " + url);
 
-    // Filter out possibly sensitive content (affects tweets with link only)
-    if (tweet["possibly_sensitive"]) {
-      continue;
-    }
-   
-
-    // If the tweet has location data, draw a marker or  use Google Maps Geocode API
-    // to first transform a location to coordinates.
-    //  1 tweet has coordinate data
-    if (tweet["coordinates"]) {
-      var coords = tweet["coordinates"]["coordinates"];  // (longitude, latitude) pair
-      var position = {lat: coords[1], lng: coords[0]};
-      color = _markerSettings[0][0];
-      label = getLabel(user_id);
-      tweet["loc"] = null;  // Add tweet location data as a general attribute for ease of access
-      placeMarker(position, label, color);
-      //console.log("Coordinates: (" + position.lat + ", " + position.lng + ")");
-    }
-
-    //  2 Geocode a location and place marker
-    else if (tweet["place"]) {
-      var loc = tweet["place"]["full_name"];
-      tweet["loc"] = loc;
-      color = _markerSettings[1][0];
-      label = addToMap(loc, color);
-      //console.log("Place: " + loc);
-    }
-
-    //  3 No tweet location available: try to geocode
-    //    user defined location
-    else {
-      var loc = tweet["user"]["location"];
-      // remove any extra characters
-      loc = loc.replace("#", "");
-      loc = loc.replace("@", "");
-      loc = loc.replace("\"", "");
-      if (loc) {
-        tweet["loc"] = loc;
-        color = _markerSettings[2][0];
-        label = addToMap(loc, color);
-        //console.log("User location: " + loc);
+      // Filter out possibly sensitive content (affects tweets with link only)
+      if (tweet["possibly_sensitive"]) {
+        continue;
       }
-    }
+     
 
-    // Embed the tweet to the sidebar
-    addTweetToSideBar(tweet, label, color);
+      // If the tweet has location data, draw a marker or  use Google Maps Geocode API
+      // to first transform a location to coordinates.
+      //  1 tweet has coordinate data
+      if (tweet["coordinates"]) {
+        var coords = tweet["coordinates"]["coordinates"];  // (longitude, latitude) pair
+        var position = {lat: coords[1], lng: coords[0]};
+        color = _markerSettings[0][0];
+        label = getLabel(user_id);
+        tweet["loc"] = null;  // Add tweet location data as a general attribute for ease of access
+        placeMarker(position, label, color);
+        //console.log("Coordinates: (" + position.lat + ", " + position.lng + ")");
+      }
+
+      //  2 Geocode a location and place marker
+      else if (tweet["place"]) {
+        var loc = tweet["place"]["full_name"];
+        tweet["loc"] = loc;
+        color = _markerSettings[1][0];
+        label = addToMap(loc, color);
+        //console.log("Place: " + loc);
+      }
+
+      //  3 No tweet location available: try to geocode
+      //    user defined location
+      else {
+        var loc = tweet["user"]["location"];
+        // remove any extra characters
+        loc = loc.replace("#", "");
+        loc = loc.replace("@", "");
+        loc = loc.replace("\"", "");
+        if (loc) {
+          tweet["loc"] = loc;
+          color = _markerSettings[2][0];
+          label = addToMap(loc, color);
+          //console.log("User location: " + loc);
+        }
+      }
+
+      // Embed the tweet to the sidebar
+      addTweetToSideBar(tweet, label, color);
+    }
+    // Force tweet renderin by manually loading widget.js
+    // (otherwise tweets remain as blockquotes for some reason)
+    twttr.widgets.load(document.getElementById("tweets"));
   }
-  // Force tweet renderin by manually loading widget.js
-  // (otherwise tweets remain as blockquotes for some reason)
-  twttr.widgets.load()
+
+  // Stop showing the loader if something goes wrong
+  catch(e) {
+    console.log(e);
+    hideLoader();
+    setMessage("<p class=\"error\">Something went wrong :( Try reloading the page.</p>", true);
+  }
 }
 
 /* Embed a users timeline to the sidebar and show tweets on the map.
@@ -278,7 +370,6 @@ A modified version of displayTweets().
 Args:
   timeline (JSON): a list of tweets in the timeline as returned by the API
 */
-// sm__________s
 function displayTimeline(timeline) {
   // Don't add anything if we are currently in a different mode
   if (mode != "locator") {
@@ -299,15 +390,15 @@ function displayTimeline(timeline) {
     }
     setMessage(msg, false);
     return;
-   }
+  }
 
-   // Apparently there are 2 types of error responses
+   // ...apparently there are 2 types of error responses
   else if (timeline.error) {
     var user = document.getElementById("searchbox").value;
     var url = "https://twitter.com/" + user;
     var msg = "<p class=\"error\">Something went wrong :( The following message was received:</p>\
       <ul><li>" + timeline.error + "</li></ul>\
-      <p class=\"error\">Looks like <a href=\"" + url + "\">@" + user + "</a> is a private account.</p>";
+      <p class=\"error\"><a href=\"" + url + "\">@" + user + "</a>Might be a private account.</p>";
     setMessage(msg, true);
     return;
   }
@@ -321,68 +412,78 @@ function displayTimeline(timeline) {
     return;
   }
 
-  // Display user defined location on the map (only once, no label)
-  var pan = true;
-  var label;
-  var userLoc = timeline[0]["user"]["location"];
-  var screen_name = timeline[0]["user"]["screen_name"];
-  var color = _markerSettings[2][0];
-  // Check if the user has set a location
-  if (!userLoc) {
-    userLoc = "NA";
-  }
-  else {
-    codeAddress(userLoc, "", color, pan);  // pan here
-  }
-  
-  for (i=0; i<timeline.length; i++) {
-    tweet = timeline[i];
-    
-    // Filter out possibly sensitive content (affects tweets with link only)
-    if (tweet["possibly_sensitive"]) {
-      continue;
+  try {
+    // Display user defined location on the map (only once, no label)
+    var pan = true;
+    var label;
+    var userLoc = timeline[0]["user"]["location"];
+    var screen_name = timeline[0]["user"]["screen_name"];
+    var color = _markerSettings[2][0];
+    // Check if the user has set a location
+    if (!userLoc) {
+      userLoc = "coords";
     }
-
-
-    // Attempt to locate the tweet: only look for tweet coordinates
-    // or place data.
-    if (tweet["coordinates"]) {
-      // (longitude, latitude) pair
-      var coords = tweet["coordinates"]["coordinates"];
-      var position = {lat: coords[1], lng: coords[0]};
-      // Create a label
-      label = getLabel(tweet["id_str"]);
-      color = _markerSettings[0][0];
-      placeMarker(position, label, color, pan);  // pan to the first decoded location (eiher coordinates or place)
-      pan = false;
-      tweet["loc"] = null;
-      //console.log("Found the following coordinates: (" + position.lat + ", " + position.lng + ")");
-    }
-
-    // Geocode a location and place marker
-    else if (tweet["place"]) {
-      var loc = tweet["place"]["full_name"];
-      tweet["loc"] = loc;
-      color = _markerSettings[1][0];
-      label = addToMap(loc, color, pan);
-      pan = false;
-    }
-
-    // No location data availalbe: set marker color and tweet metadata for sidebar.
-    // Don't add a map marker.
     else {
-      label = "";
-      color = _markerSettings[2][0];
-      tweet["loc"] = userLoc;
+      codeAddress(userLoc, "", color, pan);  // pan here
+    }
+    
+    for (i=0; i<timeline.length; i++) {
+      tweet = timeline[i];
+      
+      // Filter out possibly sensitive content (affects tweets with link only)
+      if (tweet["possibly_sensitive"]) {
+        continue;
+      }
+
+
+      // Attempt to locate the tweet: only look for tweet coordinates
+      // or place data.
+      if (tweet["coordinates"]) {
+        // (longitude, latitude) pair
+        var coords = tweet["coordinates"]["coordinates"];
+        var position = {lat: coords[1], lng: coords[0]};
+        // Create a label
+        label = getLabel(tweet["id_str"]);
+        color = _markerSettings[0][0];
+        placeMarker(position, label, color, pan);  // pan to the first decoded location (eiher coordinates or place)
+        pan = false;
+        tweet["loc"] = null;
+        //console.log("Found the following coordinates: (" + position.lat + ", " + position.lng + ")");
+      }
+
+      // Geocode a location and place marker
+      else if (tweet["place"]) {
+        var loc = tweet["place"]["full_name"];
+        tweet["loc"] = loc;
+        color = _markerSettings[1][0];
+        label = addToMap(loc, color, pan);
+        pan = false;
+      }
+
+      // No location data availalbe: set marker color and tweet metadata for sidebar.
+      // Don't add a map marker.
+      else {
+        label = "";
+        color = _markerSettings[2][0];
+        tweet["loc"] = userLoc;
+      }
+
+      addTweetToSideBar(tweet, label, color);
     }
 
-    addTweetToSideBar(tweet, label, color);
+    // Show most recent tweet at the lower bar
+    showDetails(timeline[0]);
+
+    twttr.widgets.load(document.getElementById("tweets"));
   }
 
-  // Show most recent tweet at the lower bar
-  showDetails(timeline[0]);
+  // Stop showing the loader if something goes wrong
+  catch(e) {
+    console.log(e);
+    hideLoader();
+    setMessage("<p class=\"error\">Something went wrong :( Try reloading the page.</p>", true);
+  }
 
-  twttr.widgets.load();
 }
 
 /* Embed a tweet to the sidebar by creating a new <div> element for
@@ -437,11 +538,16 @@ function addTweetToSideBar(tweet, label, color) {
   location.innerHTML = truncate(tweet["loc"]);
 
   // Add tweet source:
-  // create a wrapper and insert the html <a> string in it
+  // tweet["source"] is an <a> string, create a wrapper for it:
   var source = document.createElement("span");
   source.setAttribute("class", "meta-text");
+  // Source may be an empty string
+  if (!tweet["source"]) {
+    tweet["source"] = "NA";
+  }
   source.innerHTML = tweet["source"];
-  // Shorten the displayed text if necessary
+
+  // Shorten the source text if necessary
   var text = source.firstChild.text;
   source.firstChild.text = truncate(text, 24);
 
@@ -494,7 +600,7 @@ function showDetails(tweet) {
   }
   catch(err) {
     auserurl.style.display = "none";
-    console.log("No links for: " + screen_name);
+    //console.log("No links for: " + screen_name);
   }
 
   // user location
@@ -519,7 +625,7 @@ function showDetails(tweet) {
   // Show question mark for "read-count" and "source-chart"
   if (_missingDetails) {
     document.getElementById("read-count").innerHTML = "Recently received retweets and likes: <img src=\"./img/questionmark.png\" alt=\"questionmark\" height=\"22\">";
-    document.getElementById("source-chart").innerHTML = "<img src=\"./img/questionmark.png\" alt=\"questionmark\" height=\"100\">";
+    document.getElementById("source-chart").innerHTML = "<img src=\"./img/questionmark.png\" alt=\"questionmark\" height=\"100\" style=\"margin-left:75px\">";
   }
 
 
@@ -529,7 +635,7 @@ function showDetails(tweet) {
   var tweetCard = document.getElementById("tweet-card");
   tweetCard.innerHTML = cutEmbed;
   
-  twttr.widgets.load();
+  twttr.widgets.load(document.getElementById("tweet-card"));
 }
 
 /* Set the detail bar back to orignal values */
