@@ -16,8 +16,8 @@ Tweet volumes are only shown for worldwide data, as the API doesn't seem to trac
 country specific values.
 
 ## Details
-The server side is mostly PHP using [twitter-api-php](https://github.com/J7mbo/twitter-api-php) to interact with the Twitter API.
-The server needs to authenticate itself with Twitter developer key which should be stored in backend/keys.json.
+The server side is mostly PHP using [twitter-oauth.php](https://github.com/jonhurlock/Twitter-Application-Only-Authentication-OAuth-PHP) to interact with the Twitter API.
+The server needs to authenticate itself with Twitter developer key which should be stored in backend/keys.json. Additionally a the Google Maps JavaScript API requires a [key](https://developers.google.com/maps/documentation/javascript/get-api-key).
 No user authentication is required.
 
 Trend data is queried in a cache based system. The Python script in backend/tweet_locator.py pulls trending information from Twitter
