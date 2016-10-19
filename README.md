@@ -1,4 +1,4 @@
-#[tweet_mapper](http://lajanki.mbnet.fi/tweet_mapper/tweet_mapper.html)
+#[tweet_mapper](http://lajanki.mbnet.fi/tweet_mapper/)
 Website for connecting Twitter search with Google maps
 
 Shows tweets on a Google map and Twitter trending topics in a world chart.
