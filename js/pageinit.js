@@ -10,51 +10,77 @@ var mode;
 ***********************/
 
 /* Initialize the page: set control bar event listeners, load the help message and show the map.
-Only called when page loads.*/
+Only called when page loads.
+Wrapped in window.onload to prevent Google map loader in index.html from calling before
+this script is loaded.*/
 function init() {
-  mode = "locator";
-  about();
-  initMap();
-  initTrendChart();
-  
-  // Google charts loader
-  google.charts.load('current', {'packages':['corechart', 'geochart', 'bar']});
-  
-  var searchbox = document.getElementById("searchbox");
-  searchbox.addEventListener("keydown", getUserValue);
+  window.onload = function() {
+    mode = "locator";
+    about();
+    initMap();
+    initTrendChart();
+    
+    // Google charts loader
+    google.charts.load('current', {'packages':['corechart', 'geochart', 'bar']});
+    
+    var searchbox = document.getElementById("searchbox");
+    searchbox.addEventListener("keydown", getUserValue);
 
-  // Get the first n-1 children of the control bar and add
-  // listeners for changing mode.
-  /*
-  Why doesn't this work???
-  var controlBar = document.getElementById("app-control");
-  for (var i = 0; i < controlBar.children.length-1; i++) {
-  	// Read the mode name from the "name" attribute of the button
-    var child = controlBar.children[i];
-  	var thisMode = child.getAttribute("name");
-  	child.addEventListener("click", function() {
-  		setMode(thisMode);
-  	});
+    // Get the first n-1 children of the control bar and add
+    // listeners for changing mode.
+    /*
+    Why doesn't this work???
+    var controlBar = document.getElementById("app-control");
+    for (var i = 0; i < controlBar.children.length-1; i++) {
+    	// Read the mode name from the "name" attribute of the button
+      var child = controlBar.children[i];
+    	var thisMode = child.getAttribute("name");
+    	child.addEventListener("click", function() {
+    		setMode(thisMode);
+    	});
+    }
+    */
+
+    // ^ Fine, let's do it this way...
+    var locatorButton = document.getElementById("locator-button");
+    locatorButton.addEventListener("click", function() {
+      if (mode != "locator") {
+        setMode("locator");
+      }
+    });
+
+    var trendsButton = document.getElementById("trends-button");
+    trendsButton.addEventListener("click", function() {
+      if (mode != "trends") {
+        setMode("trends");
+      }
+    });
+
+    var aboutButton = document.getElementById("about-button");
+    aboutButton.addEventListener("click", about);
+
+    // Set event listener to "fetch-timeline" button in the lower bar:
+    // most recently selected users timeline and hide the button
+    var button = document.getElementById("fetch-timeline");
+    button.addEventListener("click", function() {
+      button.style.display = "none";
+      // Read the user whose tweets is currently shown in the details bar
+      var user = document.getElementById("username").text;
+      fetchTimeline(user.substring(1));  // exclude the "@"
+    });
+
+    // Event listener to showing typical tweet help window.
+    button = document.getElementById("typical-help-button");
+    button.addEventListener("click", function() {
+    	document.getElementById("tweet-card-help").style.display = "block";
+    });
+
+    // ...and for closing it
+    button = document.getElementById("close");
+    button.addEventListener("click", function() {
+    	document.getElementById("tweet-card-help").style.display = "none";
+    });
   }
-  */
-
-  // ^ Fine, let's do it this way...
-  var locatorButton = document.getElementById("locator-button");
-  locatorButton.addEventListener("click", function() {
-    if (mode != "locator") {
-      setMode("locator");
-    }
-  });
-
-  var trendsButton = document.getElementById("trends-button");
-  trendsButton.addEventListener("click", function() {
-    if (mode != "trends") {
-      setMode("trends");
-    }
-  });
-
-  var aboutButton = document.getElementById("about-button");
-  aboutButton.addEventListener("click", about);
 }
 
 
@@ -133,13 +159,12 @@ function setMode(newMode) {
     control = control.removeChild(control.childNodes[0]);
     map.controls[google.maps.ControlPosition.TOP_CENTER].push(control);
 
-
     // Display tweet detail bar at the bottom
     document.getElementById("detail-bar").style.display = "block";
     document.getElementById("trends-bar").style.display = "none";
 
-    // Set map height to match the 27% height of tweet detail bar
-    //document.getElementById("map").style.height = "73%";
+    // Set detail bar tweet header to initial value
+    document.getElementById("tweet-card-header").innerHTML = "Most recent/typical tweet";
 	}
 
 	else if (newMode == "trends") {
@@ -159,16 +184,8 @@ function setMode(newMode) {
     // draw the geochart
     var params = formatParams({"loc": "Worldwide"});
     getTrends(params, displayTrendChart);
-
-
-
-    // trend bar has height 37%
-    //document.getElementById("map").style.height = "60%";
-
-
 	}
 }
-
 
 
 /************************************************************************
@@ -243,19 +260,24 @@ function about() {
   var msg;
   if (mode == "locator") {
     msg = "<h2 class=\"about\">Tweet mapper</h2>\
-      <p class=\"about\">Click on the map to search for tweets near that location or use the searchbar to plot a user's latest timeline.</p>\
+      <p class=\"about\">Click on the map to search for tweets near that location or use the searchbar to show a user's recent timeline.</p>\
       <h3 class=\"about\">Help</h3>\
       <p class=\"about\">Twitter stores 3 kinds of location data:\
       <ol>\
-        <li><b>Coordinates</b> Individual tweets can be tagged with coordinates of where the tweet was sent. This is the most accurate type of location data available, but requires that the user has set this feature on from his/her Twitter account.\
+        <li><b>Coordinates</b> Individual tweets can be tagged with coordinates of where the tweet was sent.\
+        	This is the most accurate type of location data available, but requires that the user has set this feature on\
+        	from his/her Twitter account.\
         </li>\
-        <li><b>Place</b> Users can add a separate place attribute to their tweets to let others know that their tweet is either coming from a specific place or is about a place.\
+        <li><b>Place</b> Users can add a separate place attribute to their tweets to let others know that their tweet is either\
+        	coming from a specific place or is about a place.\
         </li>\
-        <li><b>Location</b> Users can also set a fixed location on their Twitter page as their place of residence. This is the least accurate type of location data as all tweets share the same value and it need not be a real place. Ambiguous locations may get located to the wrong place.\
+        <li><b>Location</b> Users can also set a fixed location on their Twitter page as their place of residence.\
+        	This is the least accurate type of location data as all tweets share the same value and it need not be a real place.\
+        	Additionally, ambiguous locations may get located to the wrong place.\
         </li>\
       </ol>\
       </p>\
-      <p class=\"about\">Once displayed, click <img src=\"http://maps.google.com/mapfiles/marker.png\" alt=\"marker icon\" height=\"28\"> to\
+      <p class=\"about\">Once tweets are displayed, click <img src=\"http://maps.google.com/mapfiles/marker.png\" alt=\"marker icon\" height=\"28\"> to\
       show tweet details and <img src=\"./img/location-map-marker-icons_red.png\" alt=\"timeline icon\" height=\"28\"> to\
       show timeline details on the lower bar.</p>\
       <img src=\"./img/tweet_example.png\" alt=\"example result\" width=\"320\" style=\"margin-left: 20px\">";
@@ -309,20 +331,6 @@ function truncate(str, len = 16) {
 /* Validate a Twitter username. */
 function validTwitteUser(screen_name) {
     return /^[a-zA-Z0-9_]{1,15}$/.test(screen_name);
-}
-
-/* Append an element to a counter.
-Args:
-  container (Object): an associative array for elements to keep count of
-  key (string): the key to add or increment.
-*/
-function incrementKey(container, key) {
-  if (key in container) {
-    container[key] += 1;
-  }
-  else {
-    container[key] = 1;
-  }
 }
 
 /* Escape html characters. */
@@ -435,11 +443,11 @@ function formatEmbed(tweet) {
 }
 
 /* Add embed codes to a list of tweet objects. */
-function addEmbeds(tweets) {
-  for (var i = 0; i < tweets.length; i++) {
-    tweets[i]["embed"] = formatEmbed(tweets[i]);
+function addEmbeds(timeline) {
+  for (var i = 0; i < timeline.length; i++) {
+    timeline[i]["embed"] = formatEmbed(timeline[i]);
   }
-  return tweets;
+  return timeline;
 }
 
 /* Check if a tweet in a list of tweets is a retweet and change it to the parent.*/
@@ -469,6 +477,42 @@ function traceRetweets(tweets) {
 }
 
 
+/* Check if str is alphanumeric.
+Source: http://stackoverflow.com/questions/4434076/best-way-to-alphanumeric-check-in-javascript
+*/
+function isAlphaNumeric(str) {
+  var code, i, len;
+
+  for (i = 0, len = str.length; i < len; i++) {
+    code = str.charCodeAt(i);
+    if (!(code > 47 && code < 58) && // numeric (0-9)
+        !(code > 64 && code < 91) && // upper alpha (A-Z)
+        !(code > 96 && code < 123)) { // lower alpha (a-z)
+      return false;
+    }
+  }
+  return true;
+}
+
+/* Check if str contains emojis. Returns a list of
+emojis detected.
+source: http://stackoverflow.com/questions/24531751/how-can-i-split-a-string-containing-emoji-into-an-array
+*/
+function stringToEmojiArray (str) {
+  split = str.split(/([\uD800-\uDBFF][\uDC00-\uDFFF])/);
+  arr = [];
+  for (var i=0; i<split.length; i++) {
+    char = split[i];
+    // drop whitespace and alphanumeric data
+    if (char !== "" && !isAlphaNumeric(char) && char.indexOf(" ") == -1) {
+      arr.push(char);
+    }
+  }
+  return arr;
+}
+
+
+
 /* Add an entry to geo.db */
 function dbAdd(address, lat, long) {
   console.log("Adding " + address + ": " + "(" + lat + ", " + long + ") to db");
@@ -487,3 +531,38 @@ function dbAdd(address, lat, long) {
     xmlhttp.send();
   }
 }
+
+/************************************************************************
+* Twitter Widget Factory functions *
+***********************************/
+
+/* Display a pre-generated timeline, see
+https://dev.twitter.com/web/javascript/creating-widgets#create-timeline */
+function factoryTimeline(screenName) {
+  document.getElementById("tweets").innerHTML = null;
+
+  twttr.widgets.createTimeline({
+    sourceType: "profile",
+    screenName: screenName
+  },
+  document.getElementById("tweets"),
+  {
+    width: '450',
+    height: '700',
+  }).then(function (el) {
+    console.log("Embedded a timeline.")
+  });
+}
+
+/* Show a timeline of likes of screenName. */
+function factoryLikes(screenName) {
+  document.getElementById("tweets").innerHTML = null;
+
+  twttr.widgets.createTimeline({
+    sourceType: "likes",
+    screenName: screenName
+  },
+  document.getElementById("tweets"));
+}
+
+

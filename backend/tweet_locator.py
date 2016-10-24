@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+# Functions to fetch Twitter trend data and user timelines from Twitter Search API
+
 import twython
 import json
 import random
@@ -8,10 +10,8 @@ import argparse
 import time
 import os
 
-# Functions to fetch Twitter trend data and user timelines
 
-
-# load Twitter keys from file
+# load Twitter keys from file (user authentication keys)
 with open("./keys.json") as f:
 	keys = json.load(f)
 

@@ -93,13 +93,13 @@ function get_timeline($bearer_token, $screen_name, $count="20") {
 
 
 if (isset($lat, $lng)) {
-	$tweets = tweets_by_loc($bearer_token, $lat, $lng, 5, 20);
+	$tweets = tweets_by_loc($bearer_token, $lat, $lng, 5, 30);
 	$tweets_str = json_encode($tweets);
 	print($tweets_str);
 }
 
 else if (isset($user)) {
-	$timeline = get_timeline($bearer_token, $user, 20);
+	$timeline = get_timeline($bearer_token, $user, 30);
 	$timeline_str = json_encode($timeline);
 	print($timeline_str);
 }

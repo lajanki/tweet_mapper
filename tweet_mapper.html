@@ -12,7 +12,7 @@ In trend analyzer mode users can
 Tweet volumes are only shown for worldwide data, as the API doesn't seem to track
 country specific values. Perhaps thisl will change someday, who knows?
 
-12.10.2016
+24.10.2016
 -->
 
 <html>
@@ -67,6 +67,7 @@ country specific values. Perhaps thisl will change someday, who knows?
           <input id="trend-search-overlay" class="controls" type="text" placeholder="#trend OR searchterm">
         </div>
 
+        <!-- A bottom bar for showing tweet details. -->
         <div id="detail-bar">
           <div id="user-info">
           	<a id="username">@username</a>
@@ -74,14 +75,27 @@ country specific values. Perhaps thisl will change someday, who knows?
           	<a id="user-url">url</a>
           	<p id="user-location">location:</p>
           </div>
-          <div id="tweet-card">&nbsp</div>
+
+          <div id="tweet-card-container">
+            <p id="tweet-card-header" class="stats-header">Most recent/typical tweet</p><a id="typical-help-button" href="#">What's this?</a>
+            <div id="tweet-card"></div>
+          </div>
+
           <div id="stats">
-          	<p class="stats-header">Timeline statistics</p>
-          	<p id="follower-count">Followers:</p>
+          	<p class="stats-header stats-close">Timeline statistics</p>
+          	<p id="follower-count" class="stats-close">Followers:</p>
           	<p id="tweet-rate">Average tweets/day:</p>
-          	<p id="read-count">Recently received retweets and likes:</p>
-          	<a id="fetch-timeline"
- 				href="#" onclick="fetchTimeline(_currentUser);return false;">Fetch timeline to fill missing data</a>
+            <p class="stats-header stats-close">Latest <span id="tweet-count">n</span> tweets:</p>
+          	<p id="read-count">Received retweets and likes:</p>
+            <p class="stats-header stats-close">Most used hashtags/mentions/urls</p>
+            <p style="font-size: 10px">(count &gt; 1)</p>
+            <table id="entity-table">
+              <tr>
+                <th>#</th><th>@</th><th>url</th>
+              </tr>
+            </table>
+            <button type="button" id="fetch-timeline" class="btn btn-info">
+              Fetch timeline to fill missing data</button>
           </div>
           <div id="chart-container">
           	<p class="stats-header">Tweet source</p>
@@ -95,6 +109,18 @@ country specific values. Perhaps thisl will change someday, who knows?
           <div id="loader"></div>
           <div id="tweets" class="animate-bottom"></div>
         </div>
+
+        <!-- A small window for showing help message about the "typical tweet" option.
+        Only visible when the "what's this" link is clicked. -->
+        <div id="tweet-card-help">
+          <div id="close"></div>
+          <p>When <img src="http://maps.google.com/mapfiles/marker.png" alt="marker icon" height="28">
+            is pressed, that tweet is shown here.</p>
+          <p>When a timeline is fetched, either by pressing <img src="./img/location-map-marker-icons_red.png" alt="timeline icon" height="28"> is or using the searchbar, a typical tweet from that timeline is shown here.
+            This tweet is determined by the timeline's tweet lengths as well as the usage of hashtags, user mentions,
+            urls, media elements and emojis.</p>
+        </div>
+
       <!-- #locator -->
       </div>
 
