@@ -1,5 +1,8 @@
 /* Functions for initializing the page and for some general, non page
-mode dependant, functions */
+mode dependant, functions
+
+28.10.2016
+*/
 
 var map;
 var geocoder;
@@ -21,27 +24,12 @@ function init() {
     initTrendChart();
     
     // Google charts loader
-    google.charts.load('current', {'packages':['corechart', 'geochart', 'bar']});
+    google.charts.load('current', {'packages':['corechart', 'geochart', 'bar', 'line']});
     
     var searchbox = document.getElementById("searchbox");
     searchbox.addEventListener("keydown", getUserValue);
 
-    // Get the first n-1 children of the control bar and add
-    // listeners for changing mode.
-    /*
-    Why doesn't this work???
-    var controlBar = document.getElementById("app-control");
-    for (var i = 0; i < controlBar.children.length-1; i++) {
-    	// Read the mode name from the "name" attribute of the button
-      var child = controlBar.children[i];
-    	var thisMode = child.getAttribute("name");
-    	child.addEventListener("click", function() {
-    		setMode(thisMode);
-    	});
-    }
-    */
-
-    // ^ Fine, let's do it this way...
+    // Add event listeners to the control buttons on top of the map
     var locatorButton = document.getElementById("locator-button");
     locatorButton.addEventListener("click", function() {
       if (mode != "locator") {
@@ -133,11 +121,13 @@ function initMap() {
   });
 }
 
-/* Set/unset map elements and event listeners based on the current mode. */
+/* Set/unset map elements and event listeners based on the current mode.
+Arg:
+  newMode (string): name of the mode to change to, ie. "locator"/"locator"
+*/
 function setMode(newMode) {
   mode = newMode;  // chnage the global mode variable
   about();
-  //console.log("current mode: " + mode);
 
   // Change control bar font emphases
   var controlBar = document.getElementById("app-control");
@@ -164,7 +154,7 @@ function setMode(newMode) {
     document.getElementById("trends-bar").style.display = "none";
 
     // Set detail bar tweet header to initial value
-    document.getElementById("tweet-card-header").innerHTML = "Most recent/typical tweet";
+    document.getElementById("tweet-card-header").innerHTML = "Selected/Typical tweet";
 	}
 
 	else if (newMode == "trends") {
@@ -182,8 +172,9 @@ function setMode(newMode) {
 
     // Format GET parameters and a send a request to fetch_trends.php in order to
     // draw the geochart
-    var params = formatParams({"loc": "Worldwide"});
-    getTrends(params, displayTrendChart);
+    //var params = formatParams({"loc": "Worldwide"});
+    //getTrends(params, displayTrendChart);
+    getLatestTrends(7);
 	}
 }
 
@@ -193,7 +184,10 @@ function setMode(newMode) {
 *******************/
 
 /* Return the marker label for this tweet. Tweets from the same
-user should have the same label. */
+user should have the same label.
+Arg:
+  key (string): a key to _labels, either a marker label or an address that was geocoded.
+*/
 function getLabel(key) {
   // If labels is empty, add this key as "A"
   // and return the label
@@ -328,7 +322,9 @@ function truncate(str, len = 16) {
   return s;
 }
 
-/* Validate a Twitter username. */
+/* Validate a Twitter username.
+Return:
+  true/false based on whether screen_name was a valid user name.*/
 function validTwitteUser(screen_name) {
     return /^[a-zA-Z0-9_]{1,15}$/.test(screen_name);
 }
@@ -442,7 +438,10 @@ function formatEmbed(tweet) {
   return prefix + text + suffix;
 }
 
-/* Add embed codes to a list of tweet objects. */
+/* Add embed codes to a list of tweet objects.
+Arg:
+  timeline (array): a list of tweet objects.
+*/
 function addEmbeds(timeline) {
   for (var i = 0; i < timeline.length; i++) {
     timeline[i]["embed"] = formatEmbed(timeline[i]);
@@ -450,7 +449,10 @@ function addEmbeds(timeline) {
   return timeline;
 }
 
-/* Check if a tweet in a list of tweets is a retweet and change it to the parent.*/
+/* Check if a tweet in a list of tweets is a retweet and change it to the parent.
+Arg:
+  tweets (array): a list of tweet objects.
+*/
 function traceRetweets(tweets) {
   var ids = [];
   var uniques = [];
@@ -476,6 +478,19 @@ function traceRetweets(tweets) {
   return uniques;
 }
 
+/* Check if a string contains punctuation characters.
+Args:
+  s (string): the string to check against
+  tokens (array): a list of characters to find in s
+*/
+function containsTokens(s, tokens) {
+  for (var i = 0; i < tokens.length; i++) {
+    if (s.indexOf(tokens[i]) != -1) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /* Check if str is alphanumeric.
 Source: http://stackoverflow.com/questions/4434076/best-way-to-alphanumeric-check-in-javascript
@@ -498,7 +513,7 @@ function isAlphaNumeric(str) {
 emojis detected.
 source: http://stackoverflow.com/questions/24531751/how-can-i-split-a-string-containing-emoji-into-an-array
 */
-function stringToEmojiArray (str) {
+function stringToEmojiArray(str) {
   split = str.split(/([\uD800-\uDBFF][\uDC00-\uDFFF])/);
   arr = [];
   for (var i=0; i<split.length; i++) {
@@ -509,27 +524,6 @@ function stringToEmojiArray (str) {
     }
   }
   return arr;
-}
-
-
-
-/* Add an entry to geo.db */
-function dbAdd(address, lat, long) {
-  console.log("Adding " + address + ": " + "(" + lat + ", " + long + ") to db");
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange = function() {
-    console.log(this.readyState);
-    if (this.readyState == 4 && this.status == 200) {
-      var response_str = this.responseText;
-      console.log("success!");
-      console.log(response_str);
-    }
-    else if (this.readyState == 4 && this.status != 200) {
-      console.log("HIP!");
-    }
-    xmlhttp.open("GET", "./geolocate_db.php?loc=" + address + "&lat=" + lat + "&long=" + long, true);
-    xmlhttp.send();
-  }
 }
 
 /************************************************************************

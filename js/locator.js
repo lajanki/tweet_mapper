@@ -1,5 +1,6 @@
-/* Javascript functions for binding tweets with the map
-24.10.2016
+/* Javascript functions for binding tweets with the map.
+
+28.10.2016
 */
 
 
@@ -35,7 +36,7 @@ var _timeline = {"user": "", "timeline": []}
 the given location. Place a map marker for each tweet and embeds
 them to the sidebar.
 Args:
-  lat (flost): the latitude as degrees
+  lat (float): latitude in degrees
   lng (float): longitude in degrees
 */
 function fetchTweets(lat, lng) {
@@ -58,11 +59,10 @@ function fetchTweets(lat, lng) {
         tweets = traceRetweets(tweets);
         tweets = addEmbeds(tweets);
       }
-      console.log("tweets:", tweets);
       
       // Empty the sidebar and add the new tweets to it
       document.getElementById("tweets").innerHTML = null;
-      document.getElementById("tweet-card-header").innerHTML = "Most recent/typical tweet";
+      document.getElementById("tweet-card-header").innerHTML = "Selected/Typical tweet";
       displayTweets(tweets);
 
       // Hide the loader and show tweets,
@@ -116,19 +116,19 @@ function fetchTimeline(user) {
       // Add embed codes
       if (timeline) {
         timeline = addEmbeds(timeline);
+        
+        // Clear the sidebar and show new content
+        document.getElementById("tweets").innerHTML = null;
+        displayTimeline(timeline);
+
+        // Compute timeline statistics and display in the detail bar.
+        fillTimelineDetails(timeline);
+
+        setTimeout(hideLoader, 410);
       }
-      console.log("timeline", timeline);
-      //x = timeline;
-
-      // Clear the sidebar and show new content
-      document.getElementById("tweets").innerHTML = null;
-      displayTimeline(timeline);
-
-      // Compute timeline statistics and display in the detail bar.
-      // Note: if displayTimeline() had nothing to display, this will silently throw a TypeError.
-      fillTimelineDetails(timeline);
-
-      setTimeout(hideLoader, 410);
+      else {
+        setMessage("Strange, couldn't find any tweets to display.");
+      }
     }
     else if (this.status == 500) {
       setMessage("Something went wrong :( The server encoutered an internal error with the following message:<br/>" +
@@ -171,7 +171,7 @@ function getUserValue(event) {
 
 /* Draw a map marker to each tweet in tweetData and embed them to the sidebar.
 Arg:
-  tweetData (JSON): a JSON encoded string of the response from Twitter search API
+  tweetData (Object): a JSON encoded response from Twitter search API.
 */
 function displayTweets(tweetData) {
   // Don't add anything if we are currently in a different mode
@@ -194,7 +194,6 @@ function displayTweets(tweetData) {
 
     // Log tweet url for debugging purposes
     var url = "http://twitter.com/" + tweet["user"]["screen_name"] + "/status/" + tweet["id_str"];
-    //console.log("tweet: " + url);
 
     // Filter out possibly sensitive content (affects tweets with link only)
     if (tweet["possibly_sensitive"]) {
@@ -212,7 +211,6 @@ function displayTweets(tweetData) {
       label = getLabel(user_id);
       tweet["loc"] = null;  // Add tweet location data as a general attribute for ease of access
       placeMarker(position, label, color);
-      //console.log("Coordinates: (" + position.lat + ", " + position.lng + ")");
     }
 
     //  2 Geocode a location and place marker
@@ -221,7 +219,6 @@ function displayTweets(tweetData) {
       tweet["loc"] = loc;
       color = _markerSettings[1][0];
       label = addToMap(loc, color);
-      //console.log("Place: " + loc);
     }
 
     //  3 No tweet location available: try to geocode
@@ -236,7 +233,6 @@ function displayTweets(tweetData) {
         tweet["loc"] = loc;
         color = _markerSettings[2][0];
         label = addToMap(loc, color);
-        //console.log("User location: " + loc);
       }
     }
 
@@ -251,7 +247,7 @@ function displayTweets(tweetData) {
 /* Embed a users timeline to the sidebar and show tweets on the map.
 A modified version of displayTweets().
 Args:
-  timeline (JSON): a list of tweets in the timeline as returned by the API
+  timeline (Object): a JSON encoded list of tweets in the timeline as returned by the API
 */
 function displayTimeline(timeline) {
   // Don't add anything if we are currently in a different mode
@@ -330,7 +326,6 @@ function displayTimeline(timeline) {
       placeMarker(position, label, color, pan);  // pan to the first decoded location (eiher coordinates or place)
       pan = false;
       tweet["loc"] = null;
-      //console.log("Found the following coordinates: (" + position.lat + ", " + position.lng + ")");
     }
 
     // Geocode a location and place marker
@@ -362,7 +357,7 @@ function displayTimeline(timeline) {
 /* Embed a tweet to the sidebar by creating a new <div> element for
 the tweet and its metadata.
 Args:
-  tweet (JSON): a JSON encoded tweet object as returned by Twitter
+  tweet (Object): a JSON encoded tweet object as returned by Twitter
   label (string): a letter to use as a marker label
   color (string): marker color
 */
@@ -510,6 +505,7 @@ function computeTimelineDetails(timeline) {
   var urls = {};
   var mediaCount = 0;
   var emojiCount = 0;
+  var badLanguageCount = 0;
 
   /* Append an element to a counter.
   Args:
@@ -594,6 +590,34 @@ function computeTimelineDetails(timeline) {
     if (emojis.length) {
       emojiCount++;
     }
+
+    // tweet semantics:
+    // mark tweet as bad language if any of the following
+    // * includes any of "dis", "dat", "cuz", "lol", "omg", "lmfao", note: works mostly only on english tweets
+    // * no punctuation
+    // * no capitalization
+    var words = tweet["text"].split(" ");
+    // filter out entities
+    words = words.filter(function(word) {
+      return !word.startsWith("http") && !word.startsWith("@") && !word.startsWith("#");
+    });
+    if (words.length) {
+      var noEntities = words.join(" ");  // orignal text without entities
+      // map to lowercase for comparison purposes
+      var lower = words.map(function(word) {
+        return word.toLowerCase();
+      });
+      //var lowerJoined = lower.join(" ");
+
+      // punctuation check
+      var noPunctuation = containsTokens(noEntities, [".", ",", "!", "?"]);
+      var lol = containsTokens(lower, ["dis", "dat", "cuz", "lol", "omg", "lmfao", "u", "bro"]);
+      var noCapitalization = (noEntities == noEntities.toLowerCase());
+
+      if (noPunctuation || lol || noCapitalization) {
+        badLanguageCount++;
+      }
+    }
   }
 
   var stats = {
@@ -606,6 +630,7 @@ function computeTimelineDetails(timeline) {
 		"counts": {
 			"media": mediaCount,
 			"emoji": emojiCount,
+      "badLanguage": badLanguageCount,
 			"lengthFreq": lengthsFreq,
 			"hashtagFreq": hashtagFreq,
 			"mentionsFreq": mentionsFreq,
@@ -628,9 +653,10 @@ function findTypicalTweet(timeline, stats) {
 
   // Create binary values from tweet entity counts:
   // if > threshold % of tweets have occurances in any entity type, set typical component value to 1
-  var threshold = 0.5;
+  var threshold = 0.5 * timeline.length;
   var media = (stats["counts"]["media"] > threshold) ? 1 : 0;
   var emoji = (stats["counts"]["emoji"] > threshold) ? 1 : 0;
+  var badLanguage = (stats["counts"]["badLanguage"] > threshold) ? 1 : 0;
 
   /* Find the index with highest value in an entity distribution.
   Arg:
@@ -649,7 +675,10 @@ function findTypicalTweet(timeline, stats) {
     return parseInt(mode);
   }
 
-  /* Normalize a numeric vector a unit length in place */
+  /* Normalize a numeric vector a unit length in place.
+  Arg:
+    vec (array): the vector to normalze as a numeric array
+  */
   function normalize(vec) {
     var geomLength = 0;
     for (var i = 0; i < vec.length; i++) {
@@ -664,7 +693,12 @@ function findTypicalTweet(timeline, stats) {
     }
   }
 
-  /* Compute dot product between 2 vectors. */
+  /* Compute dot product between 2 vectors.
+  Args:
+    vec1/vec2 (array): the vectors whose dot product to compute.
+    normalizeVectors (boolean): whether the vectors should be normalized to unit length before
+      taking the dot product.
+  */
   function dot_product(vec1, vec2, normalizeVectors = false) {
     if (vec1.length != vec2.length) {
       throw "Dot product error: vectors are not same size";
@@ -682,7 +716,7 @@ function findTypicalTweet(timeline, stats) {
     return dp;
   }
 
-
+  // Map tweet lengths to [0,1,2] to prevent large values from dominating the dot product
   var lengthMode = getMode("lengthFreq");
   if (lengthMode <= 56 ) { lengthMode = 0; }
   else if (lengthMode <= 92) { lengthMode = 1; }
@@ -692,11 +726,10 @@ function findTypicalTweet(timeline, stats) {
   var urlMode = getMode("urlFreq");
 
   // create the mode vector for the timeline
-  var modeVector = [lengthMode, hashtagMode, mentionMode, urlMode, media, emoji];
+  var modeVector = [lengthMode, hashtagMode, mentionMode, urlMode, media, emoji, badLanguage];
   // Add 1 to all values to prevent 0s in the vector from not affecting the dot product
   // ie. tweet length mode == 0 => the length component will be 0 regardless of the tweet to compare to. 
   modeVector = modeVector.map(function(val) {return val + 1});
-  console.log("mode:", modeVector);
 
 
   // Compare all tweets in the timeline to the mode vector.
@@ -707,14 +740,37 @@ function findTypicalTweet(timeline, stats) {
     var tweet = timeline[i];
     var text = tweet["text"];
 
+    // cheack for emojis and media
     var media = ("media" in tweet["entities"]) ? 1 : 0;
     var emoji = (stringToEmojiArray(text).length) ? 1 : 0;
 
+    // language check
+    var words = text.split(" ");
+    words = words.filter(function(word) {
+      return !word.startsWith("http") && !word.startsWith("@") && !word.startsWith("#");
+    });
+    var badLanguage = 0;
+    if (words.length) {
+      var noEntities = words.join(" ");  // orignal text without entities
+
+      var lower = words.map(function(word) {  // without entitties in lowercase array
+        return word.toLowerCase();
+      });
+
+      var noPunctuation = containsTokens(noEntities, [".", ",", "!", "?"]);
+      var lol = containsTokens(lower, ["dis", "dat", "cuz", "lol", "omg", "lmfao", "u", "bro"]);
+      var noCapitalization = (noEntities == noEntities.toLowerCase());
+
+      badLanguage = (noPunctuation || lol || noCapitalization) ? 1 : 0;
+    }
+
+    // tweet length
     var length = getPartition(text.length, stats["counts"]["lengthFreq"]);
     if (length <= 56 ) { length = 0; }
     else if (length <= 92) { length = 1; }
     else { length = 2; }
 
+    // hashtags/mentions/urls
     var hashtagCount = tweet["entities"]["hashtags"].length;
     var hashtag = getPartition(hashtagCount, stats["counts"]["hashtagFreq"]);
 
@@ -724,9 +780,8 @@ function findTypicalTweet(timeline, stats) {
     var urlCount = tweet["entities"]["urls"].length;
     var url = getPartition(urlCount, stats["counts"]["urlFreq"]);
 
-    var statVector = [length, hashtag, mention, url, media, emoji];
+    var statVector = [length, hashtag, mention, url, media, emoji, badLanguage];
     statVector = statVector.map(function(val) {return val + 1});
-    console.log(statVector);
 
     var dp = dot_product(modeVector, statVector, true);
     dps.push(dp);
@@ -736,13 +791,16 @@ function findTypicalTweet(timeline, stats) {
       typical = tweet;
     }
   }
-  console.log("dps:", dps);
 
   return typical;
 }
 
 
-/* Fill retweets+likes received and tweet source chart to teh detail bar.*/
+/* Fill retweets+likes received, tweet source chart and a table of
+entities used in the timeline to the detail bar.
+Arg:
+  timeline (array): a timeline as a list of tweet objects.
+*/
 function fillTimelineDetails(timeline) {
   var stats = computeTimelineDetails(timeline);
   var typical = findTypicalTweet(timeline, stats);
@@ -813,11 +871,12 @@ function fillTimelineDetails(timeline) {
     entityTable.rows[1].cells[1].innerHTML = "No multiples detected";
   }
 
-  console.log("stats:", stats);
 }
 
 
-/* Show tweet and user info on the lower bar. */
+/* Show tweet and user info on the lower bar.
+Arg:
+  tweet (Object): a tweet object as returned by Twitter API*/
 function showTweet(tweet) {
   var embed = tweet["embed"];
   var screen_name = tweet["user"]["screen_name"];
@@ -844,7 +903,6 @@ function showTweet(tweet) {
   }
   catch(err) {
     auserurl.style.display = "none";
-    //console.log("No links for: " + screen_name);
   }
 
   // user location
@@ -953,11 +1011,11 @@ function createSourceChart(sourceData) {
 * Marker placing *
 *****************/
 
-/* Add an address to the map. Use checkAddress to determine if the
+/* Add a marker to an address on the map. Use checkAddress to determine if the
 address matches a known address or whether it should be geocoded.
 Args:
   address (string): the address where a marker should be placed
-  color (string): marker color
+  color (string): marker color, should be one of those in _markerSettings
   pan (boolean): whether the map should pan to the marker
 Return:
   the label for the marker
@@ -978,7 +1036,9 @@ function addToMap(address, color, pan = false) {
   return label;
 }
 
-/* Check if the beginning of an address matches a previously seen address.
+/* Check if an address matches a previously seen address.
+Arg:
+  address (string): the address to check 
 Return:
   the matching address (in lowercase)
 */
@@ -994,15 +1054,18 @@ function checkAddress(address) {
     var old = _uaddress[i].replace(",", "");
     if (old.indexOf(start) != -1 ) {
       // Set the labels to match
-      //console.log("'" + address + "' matches a previous location '" + _uaddress[i] + "'.");
       return _uaddress[i];
     }
   }
 }
 
-/* Geocode a string address to a LatLng object.
-Note: the handler is an asynchronous function. Marker placing needs to happen
-within succesfull request.*/
+/* Geocode a string address to a LatLng object and place a marker on it.
+Args:
+  address (string): the address to geocode
+  label (string): a single character label for the marker to place
+  color (string): marker color, should be one of those in _markerSettings
+  pan (boolean): whether the map should pan to the marker
+*/
 function codeAddress(address, label, color, pan = false) {
   geocoder.geocode( { 'address': address}, function(results, status) {
     if (status == 'OK') {
@@ -1010,7 +1073,6 @@ function codeAddress(address, label, color, pan = false) {
       var latLng = results[0].geometry.location;
       // Note that due to the asynchronous nature of this function,
       // messages will appear out of synch in the log.
-      console.log("Geocoded '" + address + "' as " + latLng.toString());
       placeMarker(latLng, label, color, pan);
 
       // Add the geocoded entry to geo.db for easier accessing next time
@@ -1028,11 +1090,12 @@ Args:
   location (LatLngLiteral or LatLng): the coordinates where to place the marker.
     The API will convert the more conveniant LatLngLiteral: {lat: -34, lng: 151} to a LatLng object when needed,
     see https://developers.google.com/maps/documentation/javascript/3.exp/reference#LatLng
-  label (String): a string to use as a label for the marker
+  label (string): a single character to use as a label for the marker
+  color (string): marker color, should be one of those in _markerSettings
+  pan (boolean): whether the map should pan to the marker
 */
 function placeMarker(location, label, color, pan = false) {
   // Add a map marker to the given coordinates
-  //console.log(markerlabel)
   var marker = new google.maps.Marker({
     position: location,
     map: map,

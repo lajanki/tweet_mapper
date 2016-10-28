@@ -371,7 +371,7 @@ p.about {
 	to{ bottom:0; opacity:1 }
 }
 
-th, td {
+#entity-table th, #entity-table td {
 	width: 145px;
 	padding-right: 5px;
 }

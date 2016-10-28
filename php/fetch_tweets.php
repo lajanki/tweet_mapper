@@ -1,13 +1,7 @@
 <?php
 
 // Functions for searching tweets by coordinates and user timelines using bearer tokens and application authentication.
-// Modeled after Jon Hurlocks application only oauth library,
-// https://github.com/jonhurlock/Twitter-Application-Only-Authentication-OAuth-PHP
 
-
-$lat = $_GET["lat"];
-$lng = $_GET["lng"];
-$user = $_GET["user"];
 
 // Load bearer token from file (little_youtube)
 $string = file_get_contents("../backend/keys.json");
@@ -32,7 +26,7 @@ function tweets_by_loc($bearer_token, $lat, $long, $r="5", $count="30"){
 
 	// Note: the q parameter is required: use a whitespace character " ".
 	$q=urlencode(" ");
-	$formed_url = "?q=".$q."&geocode=".$loc."&count=".$count."include_entities=false&result_type=recent";
+	$formed_url = "?q=".$q."&geocode=".$loc."&count=".$count."include_entities=true&result_type=recent";
 
 	$headers = array( 
 		"GET /1.1/search/tweets.json".$formed_url." HTTP/1.1", 
@@ -92,14 +86,14 @@ function get_timeline($bearer_token, $screen_name, $count="20") {
 
 
 
-if (isset($lat, $lng)) {
-	$tweets = tweets_by_loc($bearer_token, $lat, $lng, 5, 30);
+if (isset($_GET["lat"], $_GET["lng"])) {
+	$tweets = tweets_by_loc($bearer_token, $_GET["lat"], $_GET["lng"], 5, 30);
 	$tweets_str = json_encode($tweets);
 	print($tweets_str);
 }
 
-else if (isset($user)) {
-	$timeline = get_timeline($bearer_token, $user, 30);
+else if (isset($_GET["user"])) {
+	$timeline = get_timeline($bearer_token, $_GET["user"], 30);
 	$timeline_str = json_encode($timeline);
 	print($timeline_str);
 }
