@@ -1,6 +1,5 @@
-/* Javascript functions for binding tweets with the map.
-
-28.10.2016
+/* Javascript functions for binding tweets with the map
+30.10.2016
 */
 
 
@@ -29,120 +28,78 @@ var _timeline = {"user": "", "timeline": []}
 
 
 /************************************************************************
-* Twitter query *
-****************/
+* Twitter query callbacks *
+***************************/
 
-/* Make an AJAX request to fetch_tweets.php to get tweets near
-the given location. Place a map marker for each tweet and embeds
-them to the sidebar.
-Args:
-  lat (float): latitude in degrees
-  lng (float): longitude in degrees
+/* A callback to requestFile(). Adds embed codes to tweets received from fetch_tweets.php
+and calls displayTweets to list them on the sidebar and to place a marker on the map.
+Arg:
+  tweets (Array): a list of tweets received from Twitter API via fetch_tweets.php.
 */
-function fetchTweets(lat, lng) {
-  // Clear previous data
-  clearMarkers();
-  _labels = {};
-  showLoader();
-  clearDetails();
+// TODO: maybe combine with displayTweets?
+function processTweets(tweets) {
+  // Response is an array of tweet objects from the API.
+  console.log("tweets:", tweets);
 
-  _timeline["user"] = "";
-
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      var response_str = this.responseText;
-      var tweets = JSON.parse(response_str);
-
-      // Trace retweets and add embed codes
-      if (tweets) {
-        tweets = traceRetweets(tweets);
-        tweets = addEmbeds(tweets);
-      }
-      
-      // Empty the sidebar and add the new tweets to it
-      document.getElementById("tweets").innerHTML = null;
-      document.getElementById("tweet-card-header").innerHTML = "Selected/Typical tweet";
-      displayTweets(tweets);
-
-      // Hide the loader and show tweets,
-      // use a small delay to allow the tweets to be fully rendered
-      setTimeout(hideLoader, 410)
-      
-    }
-    else if (this.status == 500) {
-      setMessage("Something went wrong :( The server encoutered an internal error with the following message:<br/>" +
-         this.statusText + "<br/>Try again.");
-    }
+  // Generate Embed codes and fetch the parent if tweet is a retweet.
+  if (tweets) {
+    tweets = traceRetweets(tweets);
+    tweets = addEmbeds(tweets);
   }
-  xmlhttp.open("GET", "./php/fetch_tweets.php?lat="+lat+"&lng="+lng, true);
-  xmlhttp.send();
+
+  // Empty the sidebar and add the new tweets to it.
+  document.getElementById("tweets").innerHTML = null;
+  document.getElementById("tweet-card-header").innerHTML = "Selected/Typical tweet";
+  displayTweets(tweets);
+
+  // Hide the loader and show tweets.
+  // use a small delay to allow the tweets to render properly.
+  setTimeout(hideLoader, 410);
 }
 
-/* AJAX request for fetching a user timeline.
+
+
+/* A callback to requestFile(). Adds embed codes to a timeline received from fetch_tweets.php,
+updates _timeline metadata, computes timeline details and fills the lower bar with timeline
+stats.
 Arg:
-  user (string): the screen name to the user whose timeline to fetch
+  timeline (array): an array of tweets in a timeline as received from the API.
 */
-function fetchTimeline(user) {
-  // Check if this timeline is already fetched (ie. most recent timeline is the right one)
+function processTimeline(timeline) {
+  // Check if this timeline is already fetched (ie. most recent timeline is the one requested).
+  var user = timeline[0]["user"]["screen_name"];
   if (_timeline["user"] == user) {
     console.log("Timeline for " + user + " already fetched.");
     return;
   }
 
-  // Set username to the searchbar
+  else if (!timeline || !timeline.length) {
+    setMessage("Strange, couldn't find any tweets to display.");
+  }
+
+  // Set username to the searchbar.
   document.getElementById("searchbox").value = user;
 
-  // Clear previous data
-  clearMarkers();
-  _labels = {};
-  showLoader();
-  clearDetails();
+  _timeline["user"] = user;
+  _timeline["timeline"] = timeline;
+  console.log("timeline", timeline);
 
-  // clear "fetch timeline for details" button and question marks
-  // regardless of current user
-  document.getElementById("fetch-timeline").style.display = "none";
-  document.getElementById("source-chart").innerHTML = null;
-  document.getElementById("read-count").innerHTML = "Received retweets and likes:";
+  // Add embed codes.
+  if (timeline) {
+    timeline = addEmbeds(timeline);
+    
+    // Clear the sidebar and show new content
+    document.getElementById("tweets").innerHTML = null;
+    displayTimeline(timeline);
 
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      var response_str = this.responseText;
-      var timeline = JSON.parse(response_str);
-      _timeline["user"] = user;
-      _timeline["timeline"] = timeline;
-
-      // Add embed codes
-      if (timeline) {
-        timeline = addEmbeds(timeline);
-        
-        // Clear the sidebar and show new content
-        document.getElementById("tweets").innerHTML = null;
-        displayTimeline(timeline);
-
-        // Compute timeline statistics and display in the detail bar.
-        fillTimelineDetails(timeline);
-
-        setTimeout(hideLoader, 410);
-      }
-      else {
-        setMessage("Strange, couldn't find any tweets to display.");
-      }
-    }
-    else if (this.status == 500) {
-      setMessage("Something went wrong :( The server encoutered an internal error with the following message:<br/>" +
-         this.statusText + "<br/>Try again.");
-    }
+    // Compute timeline statistics and display in the detail bar.
+    fillTimelineDetails(timeline);
+    setTimeout(hideLoader, 410);
   }
-  xmlhttp.open("GET", "./php/fetch_tweets.php?user="+user, true);
-  xmlhttp.send();
 }
 
 
-
-/* A wrapper to reading the username from the searchBox and passing
-it to fetchTimeLine().*/
+/* Reads username from the searchbox and performs a timeline search via requestFile.*/
 function getUserValue(event) {
   // Check for Enter key press
   if (event.which != 13) {
@@ -160,8 +117,11 @@ function getUserValue(event) {
     setMessage(msg, true);
     return;
   }
-  
-  fetchTimeline(user);
+
+  // Clear previous data
+  showLoader();
+  clearDetails();
+  requestFile("./php/fetch_tweets.php", "?user="+user, processTimeline);
 }
 
 
@@ -194,6 +154,7 @@ function displayTweets(tweetData) {
 
     // Log tweet url for debugging purposes
     var url = "http://twitter.com/" + tweet["user"]["screen_name"] + "/status/" + tweet["id_str"];
+    //console.log("tweet: " + url);
 
     // Filter out possibly sensitive content (affects tweets with link only)
     if (tweet["possibly_sensitive"]) {
@@ -211,6 +172,7 @@ function displayTweets(tweetData) {
       label = getLabel(user_id);
       tweet["loc"] = null;  // Add tweet location data as a general attribute for ease of access
       placeMarker(position, label, color);
+      //console.log("Coordinates: (" + position.lat + ", " + position.lng + ")");
     }
 
     //  2 Geocode a location and place marker
@@ -219,6 +181,7 @@ function displayTweets(tweetData) {
       tweet["loc"] = loc;
       color = _markerSettings[1][0];
       label = addToMap(loc, color);
+      //console.log("Place: " + loc);
     }
 
     //  3 No tweet location available: try to geocode
@@ -233,11 +196,12 @@ function displayTweets(tweetData) {
         tweet["loc"] = loc;
         color = _markerSettings[2][0];
         label = addToMap(loc, color);
+        //console.log("User location: " + loc);
       }
     }
 
-      // Embed the tweet to the sidebar
-      addTweetToSideBar(tweet, label, color);
+    // Embed the tweet to the sidebar
+    addTweetToSideBar(tweet, label, color);
   }
     // Force tweet renderin by manually loading widget.js
     // (otherwise tweets remain as blockquotes for some reason)
@@ -247,7 +211,7 @@ function displayTweets(tweetData) {
 /* Embed a users timeline to the sidebar and show tweets on the map.
 A modified version of displayTweets().
 Args:
-  timeline (Object): a JSON encoded list of tweets in the timeline as returned by the API
+  timeline (array): a list of tweet objects in a timeline
 */
 function displayTimeline(timeline) {
   // Don't add anything if we are currently in a different mode
@@ -326,6 +290,7 @@ function displayTimeline(timeline) {
       placeMarker(position, label, color, pan);  // pan to the first decoded location (eiher coordinates or place)
       pan = false;
       tweet["loc"] = null;
+      //console.log("Found the following coordinates: (" + position.lat + ", " + position.lng + ")");
     }
 
     // Geocode a location and place marker
@@ -398,7 +363,10 @@ function addTweetToSideBar(tweet, label, color) {
 
   // Event listener: fetch recent tweets
   timeline.addEventListener("click", function() {
-    fetchTimeline(tweet["user"]["screen_name"]);
+    // Clear previous data
+    showLoader();
+    clearDetails();
+    requestFile("./php/fetch_tweets.php", "?user="+tweet["user"]["screen_name"], processTimeline);
   });
 
   // <p> for location
@@ -494,7 +462,7 @@ function getPartition(count, distribution) {
 	4. hashtag/mentions/url distributions
 	5. emoji usage
 Arg:
-  timeline (Array): a timeline of tweets as fetched in fetchTimeLine()
+  timeline (Array): an array of tweets received from the API.
 */
 function computeTimelineDetails(timeline) {
   var likes = 0;
@@ -730,6 +698,7 @@ function findTypicalTweet(timeline, stats) {
   // Add 1 to all values to prevent 0s in the vector from not affecting the dot product
   // ie. tweet length mode == 0 => the length component will be 0 regardless of the tweet to compare to. 
   modeVector = modeVector.map(function(val) {return val + 1});
+  //console.log("mode:", modeVector);
 
 
   // Compare all tweets in the timeline to the mode vector.
@@ -782,6 +751,7 @@ function findTypicalTweet(timeline, stats) {
 
     var statVector = [length, hashtag, mention, url, media, emoji, badLanguage];
     statVector = statVector.map(function(val) {return val + 1});
+    //console.log(statVector);
 
     var dp = dot_product(modeVector, statVector, true);
     dps.push(dp);
@@ -791,6 +761,7 @@ function findTypicalTweet(timeline, stats) {
       typical = tweet;
     }
   }
+  console.log("dps:", dps);
 
   return typical;
 }
@@ -805,7 +776,9 @@ function fillTimelineDetails(timeline) {
   var stats = computeTimelineDetails(timeline);
   var typical = findTypicalTweet(timeline, stats);
   showTweet(typical);
-  createSourceChart(stats["sources"]);
+  google.charts.setOnLoadCallback(function() {
+    createSourceChart(stats["sources"]);
+  });
 
   // Fill headers
   var likes = formatThousands(stats["likes"] + stats["rts"]);
@@ -871,6 +844,7 @@ function fillTimelineDetails(timeline) {
     entityTable.rows[1].cells[1].innerHTML = "No multiples detected";
   }
 
+  console.log("stats:", stats);
 }
 
 
@@ -903,6 +877,7 @@ function showTweet(tweet) {
   }
   catch(err) {
     auserurl.style.display = "none";
+    //console.log("No links for: " + screen_name);
   }
 
   // user location
@@ -944,6 +919,11 @@ function showTweet(tweet) {
 
 /* Set the detail bar back to orignal values */
 function clearDetails() {
+  // Clear map markers tweet search metadata
+  clearMarkers();
+  _labels = {};
+  _timeline["user"] = "";
+
   // Account info
   document.getElementById("username").innerHTML = "@username";
   document.getElementById("account-description").innerHTML = "description";
@@ -970,7 +950,6 @@ function clearDetails() {
 
   // Source chart
   document.getElementById("source-chart").innerHTML = null;
-  document.getElementById("fetch-timeline").style.display = "none";
 
   // Help message for typical tweet
   document.getElementById("tweet-card-help").style.display = "none";
@@ -978,32 +957,30 @@ function clearDetails() {
 
 /* Create a pie chart for tweet source data. */
 function createSourceChart(sourceData) {
-  google.charts.setOnLoadCallback(function() {
-    var dataPoints = [];
-    // Create a DataTable instance and fill it with the required format
-    var data = new google.visualization.DataTable();
-    data.addColumn("string", "Source");
-    data.addColumn("number", "Count");
+  var dataPoints = [];
+  // Create a DataTable instance and fill it with the required format
+  var data = new google.visualization.DataTable();
+  data.addColumn("string", "Source");
+  data.addColumn("number", "Count");
 
-    for (source in sourceData) {
-      // Tweet source is an html string. Convert it to a DOM element to get its
-      // text value
-      var wrapper = document.createElement("div");
-      wrapper.innerHTML = source;
-      var sourceStr = wrapper.firstChild.text;
+  for (source in sourceData) {
+    // Tweet source is an html string. Convert it to a DOM element to get its
+    // text value
+    var wrapper = document.createElement("div");
+    wrapper.innerHTML = source;
+    var sourceStr = wrapper.firstChild.text;
 
-      // Format the data to [label, value]
-      var p = [sourceStr, sourceData[source]];
-      data.addRow(p);
-    }
+    // Format the data to [label, value]
+    var p = [sourceStr, sourceData[source]];
+    data.addRow(p);
+  }
 
-    var options = {
-      //legend: {position: "labeled"}
-    };
+  var options = {
+    //legend: {position: "labeled"}
+  };
 
-    var chart = new google.visualization.PieChart(document.getElementById('source-chart'));
-    chart.draw(data, options);
-  });
+  var chart = new google.visualization.PieChart(document.getElementById('source-chart'));
+  chart.draw(data, options);
 }
 
 
@@ -1054,6 +1031,7 @@ function checkAddress(address) {
     var old = _uaddress[i].replace(",", "");
     if (old.indexOf(start) != -1 ) {
       // Set the labels to match
+      //console.log("'" + address + "' matches a previous location '" + _uaddress[i] + "'.");
       return _uaddress[i];
     }
   }
@@ -1073,6 +1051,7 @@ function codeAddress(address, label, color, pan = false) {
       var latLng = results[0].geometry.location;
       // Note that due to the asynchronous nature of this function,
       // messages will appear out of synch in the log.
+      console.log("Geocoded '" + address + "' as " + latLng.toString());
       placeMarker(latLng, label, color, pan);
 
       // Add the geocoded entry to geo.db for easier accessing next time
@@ -1096,6 +1075,7 @@ Args:
 */
 function placeMarker(location, label, color, pan = false) {
   // Add a map marker to the given coordinates
+  //console.log(markerlabel)
   var marker = new google.maps.Marker({
     position: location,
     map: map,

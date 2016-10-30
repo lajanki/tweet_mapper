@@ -1,7 +1,7 @@
-/* Functions for initializing the page and for some general, non page
+/* Functions for initializing the page and some general, non page
 mode dependant, functions
 
-28.10.2016
+30.10.2016
 */
 
 var map;
@@ -21,10 +21,11 @@ function init() {
     mode = "locator";
     about();
     initMap();
-    initTrendChart();
-    
-    // Google charts loader
-    google.charts.load('current', {'packages':['corechart', 'geochart', 'bar', 'line']});
+
+    // Call Google charts loader and initialize a geochart for displaying trending data.
+    google.charts.load('current', {'packages':['corechart', 'geochart', 'line']});
+    google.charts.setOnLoadCallback(initTrendChart);
+   
     
     var searchbox = document.getElementById("searchbox");
     searchbox.addEventListener("keydown", getUserValue);
@@ -53,8 +54,11 @@ function init() {
     button.addEventListener("click", function() {
       button.style.display = "none";
       // Read the user whose tweets is currently shown in the details bar
-      var user = document.getElementById("username").text;
-      fetchTimeline(user.substring(1));  // exclude the "@"
+      var user = document.getElementById("username").text.substring(1); // // exclude the "@"
+      // Clear previous data
+      showLoader();
+      clearDetails();
+      requestFile("./php/fetch_tweets.php", "?user="+user, processTimeline);
     });
 
     // Event listener to showing typical tweet help window.
@@ -72,7 +76,8 @@ function init() {
 }
 
 
-/* Create the map and initialize it to Tweet locator. */
+/* Create a Google Maps object and page control elements to attach to it.
+Add an event listener to the map for findind tweets near the clicked coordinates. */
 function initMap() {
   // Create a map object and add it to the "map" div
   map = new google.maps.Map(document.getElementById("map"), {
@@ -116,8 +121,58 @@ function initMap() {
     var lat = event.latLng.lat().toFixed(4);
     var lng = event.latLng.lng().toFixed(4);
 
-    // Fetch tweets and display the loader
-    fetchTweets(lat, lng);
+    // Show the loader, clear previous data and fetch new tweets.
+    // The loader will be hidden wihtin processTweets.
+    showLoader();
+    clearDetails();
+    requestFile("./php/fetch_tweets.php", "?lat="+lat+"&lng="+lng, processTweets);
+  });
+}
+
+/* Create a Google GeoChart object to display trending data. Add event listeners for
+ trend searchbox and displaying a list of a country's trends. Finally, fetch all
+ countries with trending data available via fetch_trends.php and draw them on the chart.*/
+function initTrendChart() {
+  // Define global geochart options.
+  var options = {
+    width: 1450,
+    height: 625,
+    keepAspectRatio: false,
+    defaultColor: "518E4B",
+    backgroundColor: "#91CEF3"
+  }
+
+  // Store a global reference to a single chart object and drawing options.
+  // These are not modified after setup.
+  var chart = new google.visualization.GeoChart(document.getElementById("geochart"));
+  _geoChart["chart"] = chart;
+  _geoChart["options"] = options;
+
+  // Add event listener to trend search box
+  var searchbox = document.getElementById("trend-search-overlay");
+  searchbox.addEventListener("keydown", queryTrendingCountries);
+
+  // Event listener for "worldwide" button: draw the chart with worldwide data
+  // and list trends with tweet volume on the sidebar.
+  var worldwide = document.getElementById("worldwide-overlay");
+  worldwide.addEventListener("click", function() {
+    drawChart(_geoChart["default"]);
+    requestFile("./php/fetch_trends.php","?loc=Worldwide", listTrends);
+  });
+
+  // Event listener to the chart: get the selected country and draw a list of trends to the sidebar.
+  google.visualization.events.addListener(chart, "select", function() {
+    var selection = chart.getSelection()[0].row;  // row index of the selected value, silently throws TypeError if not a valid selection
+    var country = _geoChart["data"].getValue(selection, 0); // row, col indices matching the selected country in data
+    //console.log(country);
+
+    requestFile("./php/fetch_trends.php","?loc="+country, listTrends);
+  });
+
+  // Draw the chart with all countries where trending data is available.
+  requestFile("./php/fetch_trends.php", "?fetch_all", function(countries) {
+    _geoChart["default"] = countries;  // store the list of drawable countries
+    drawChart(countries);
   });
 }
 
@@ -128,6 +183,7 @@ Arg:
 function setMode(newMode) {
   mode = newMode;  // chnage the global mode variable
   about();
+  //console.log("current mode: " + mode);
 
   // Change control bar font emphases
   var controlBar = document.getElementById("app-control");
@@ -170,11 +226,8 @@ function setMode(newMode) {
     document.getElementById("trends-bar").style.display = "block";
     document.getElementById("detail-bar").style.display = "none";
 
-    // Format GET parameters and a send a request to fetch_trends.php in order to
-    // draw the geochart
-    //var params = formatParams({"loc": "Worldwide"});
-    //getTrends(params, displayTrendChart);
-    getLatestTrends(7);
+    // Fetch trending data from treds.db to draw a history chart.
+    requestFile("./backend/trends.php", "?latest=true&n=7", getLatestTrends);
 	}
 }
 
@@ -182,6 +235,29 @@ function setMode(newMode) {
 /************************************************************************
 * Helper functions *
 *******************/
+
+/* Generic AJAX function to send a GET request to the specified url with callback.
+Args:
+  url (string): path to the script to call
+  params (string): formatted GET params to append to the url, including ? at the beginning
+  callback (function): function to call with the AJAX response as a parameter
+*/
+function requestFile(url, params, callback) {
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      var response = JSON.parse(this.responseText);
+      callback(response);
+    }
+    else if (this.status == 500) {
+      setMessage("Something went wrong :( The server encoutered an internal error with the following message:<br/>" +
+        this.statusText + "<br/>Try again.");
+    }
+  }
+  xmlhttp.open("GET", url + params, true);
+  xmlhttp.send();
+}
+
 
 /* Return the marker label for this tweet. Tweets from the same
 user should have the same label.
@@ -291,7 +367,6 @@ function about() {
 
   setMessage(msg, true);
   clearDetails();
-  clearMarkers();
   // Remove and re-add the sidebar to restat the anmation
   var tweets = document.getElementById("tweets");
   var newone = tweets.cloneNode(true);
@@ -525,6 +600,8 @@ function stringToEmojiArray(str) {
   }
   return arr;
 }
+
+
 
 /************************************************************************
 * Twitter Widget Factory functions *
