@@ -1,9 +1,8 @@
 /* Functions for fetching Twitter trends data and displaying it on a 
 Google geochart.
 
-TODO: add past trends to the history chart.
 
-30.10.2016
+2.11.2016
 */
 
 
@@ -59,32 +58,49 @@ Args:
 	trendData (array): the data to display in the chart as array of rows to pass to DataTable.
 	Row format is [timestamp, trend1_volume, trend2_volume, ...].
 	columnNames (array): the column names to pass to the DataTable
+	timestamp (string): a database timestamp in the form of "d_26_1230" of the latest addition to the database.
 */
-function drawTrendHistory(trendData, columnNames) {
+function drawTrendHistory(trendData, columnNames, hTickMarks, timestamp) {
   var data = new google.visualization.DataTable();
+  var timestamp = new Date(timestamp * 1000);  // convert timestamp to milliseconds
+  var offset = -timestamp.getTimezoneOffset() / 60;  // offset from UTC to local time in hours
+  offset = ((offset > 0) ? "+" : "") + offset // add a + sign if necessary
+  timestamp = timestamp.toString();
+ 
 
   // Read headers from the first row in trends and create columns for the chart data,
   // columns == trend names
-  data.addColumn("string", "time (UTC)");
+  data.addColumn("datetime", "time");
   for (var i = 0; i < columnNames.length; i++) {
     data.addColumn("number", columnNames[i]);
   }
 
   data.addRows(trendData);
   _trendHistoryChart["data"] = data;
+  // Format the timestamp column.
+  var formatter = new google.visualization.DateFormat({pattern: "MMM d H:mm"});
+  formatter.format(data, 0);
 
   var options = {
-    chart: {
-      title: "Top 10 worldwide trends by tweet volume",
-      subtitle: "Recent history of current top trends from the previous 24h as measured every 2 hours."
-    },
     height: 450,
-    width: "100%",
-    legend: {position: 'top', textStyle: {color: 'blue', fontSize: 16}}
+    pointSize: 5,
+    title: "Current and recent worldwide top trends by tweet volume. Updated " + timestamp,
+    legend: {textStyle: {fontSize: 14}},
+    curveType: "function",
+    hAxis: {
+  		title: "Time (GMT " + offset + " )",
+  		ticks: hTickMarks,
+  		format: "H:mm"
+		},
+		vAxis: {
+			title: "Tweet Volume",
+			viewWindow: { min: 0 }
+		}
   };
   _trendHistoryChart["options"] = options;
 
-  var chart = new google.charts.Line(document.getElementById("trends-bar"));
+  var chart = new google.visualization.LineChart(document.getElementById("trends-bar"));
+  //var chart = new google.charts.Line(document.getElementById("trends-bar"));  // material charts version
   _trendHistoryChart["chart"] = chart;
   chart.draw(data, options);
 }
@@ -208,56 +224,96 @@ function queryTrendingCountries(event) {
 
 /* Get the latest n columns from the latest table from the database at ../backend/trends.db.
 Arg:
-	dbRows (array): a list of rows from trends.db as returned by backend/trends.php.
+	response (Object): an associative array of:
+		"data": a list of rows from trends.db as returned by backend/trends.php,
+		"timestamp": modification time of the database in seconds
 */
-function getLatestTrends(dbRows) {
+function getLatestTrends(response) {
+  var dbRows = response["data"];
+  //console.log("rows:", dbRows);
+
   // Transform database column headers to UNIX timestamps and reformat the data to arrays of
   // [timestamp, trend1, trend2, ...] using the top 10 trends as ordered by the latest measurement.
   var keys = Object.keys(dbRows[0]);
   keys = keys.sort().slice(0, -1);  // keys, without "trend", sorted in alphabetical order (ie. latest timestamp is last)
   //console.log(keys);
+  var latest = keys[keys.length-1];
 
-  // Find the top 10 trends
-  var topTrends = [];  // init an array for trends as (trend, volume) pairs in the latest column
+  /*
+  // Get time delta between the first and second columns
+  var ts = keys[0].split("_")[2];
+  var hour1 = parseInt(ts.slice(0, 2));
+  ts = keys[1].split("_")[2];
+  var hour2 = parseInt(ts.slice(0, 2));
+  delta = hour1 - hour2;
+  //console.log(delta)
+  */
+  var delta = 2;
+ 
+  // Find the indices of the top 10 trends according to the most recent measurement
+  var volumes = [];  // array for (volume, idx)-pairs
   for (var i = 0; i < dbRows.length; i++) {
-  	var trendSeries = [dbRows[i]["trend"]];   // [trend, timestamp_n, timestamp_(n-1), ..., timestamp_1], where timestamp_1 == latest
-  	for (var j = 0; j < keys.length; j++) {
-  		var volume = parseInt(dbRows[i][keys[j]]);
-  		if (volume == 0) { volume = 10000; }
-  		else if (volume == -1) { volume = 0; }
-  		trendSeries.push(parseInt(volume));
-  	}
-  	topTrends.push(trendSeries);
+  	var volume = parseInt(dbRows[i][latest]);
+  	volumes.push([volume, i]);
   }
-  // Sort by most recent volume and cut the tail
-  topTrends.sort(function(a, b) { return b[b.length-1] - a[a.length-1]; });
-  topTrends = topTrends.slice(0, 10);
-  var trendNames = topTrends.map(function(trend) {return trend[0]; });
-  //console.log("top trends:", topTrends);
-  //console.log("trends:", trendNames);
+  // Sort in descending order and take top 10 values
+  volumes.sort(function(a, b) { return b[0] - a[0] });
+  volumes = volumes.slice(0, 10);
+
+  // Find top 10 trends by row sums
+  var rowSums = [];  // array for (total_tweet_volume, idx, trend_name)-tuples
+  for (var i = 0; i < dbRows.length; i++) {
+  	var sum = 0;
+  	for (key in dbRows[i]) {
+  		if (key != "trend" && dbRows[i][key] != "-1") {  // exclude the trend name and missing vales from the sum
+  			sum += parseInt(dbRows[i][key]);
+  		}
+  	}
+  	rowSums.push([sum, i]);
+  }
+
+  // Sort and get top 10 trends
+	rowSums.sort(function(a, b) { return b[0] - a[0]; });
+	rowSums = rowSums.slice(0, 10);
+	//console.log(rowSums);
+
+	// Combine volumes and rowSums, filtering out duplicate dbRow indices 
+	var trendNames = [];
+	var highVolumes = rowSums.concat(volumes);
+	var rowIdx = [];  // list of dbRows indices of the data to draw
+	for (var i = 0; i < highVolumes.length; i++) {
+		// Only get unique indices from highVolumes
+		var idx = highVolumes[i][1];
+		if (rowIdx.indexOf(idx) == -1) {
+			rowIdx.push(idx);
+			// Add the trend name to separate list
+			trendNames.push(dbRows[idx]["trend"]);
+		}
+	}
 
 
-  // Reformat the data to [timestamp, trend1, trend2, ...].
-  var rows = [];
-  var now = new Date();
-  for (var i = 0; i < keys.length; i++) {
-  	// reformat timestamp to HH:MM using UTC hours.
-  	var timestamp = keys[i].split("_")[2];
-  	var hour = parseInt(timestamp.slice(0, 2));
-  	var hourOffset = now.getUTCHours() - now.getHours();  // hour offset from local time to UTC time
-  	hour += hourOffset;
-  	timestamp = hour + ":" + timestamp.slice(2, 4);
+	var ticks = [];  // tickmarks for the chart
+	var data = [];  // datarows to draw
+	var now = new Date(); // a single static timestamp to compare database column headers to
+	for (var i = 0; i < keys.length; i++) {
+		var timestamp = formatTimestamp(keys[i], now);
+		ticks.push(timestamp);
 
-  	// Create a trend row to pass to trendHistory()
   	var row = [timestamp];
-  	for (var j = 0; j < topTrends.length; j++) {
-  		row.push(topTrends[j][i+1]);
-  	}
-  	rows.push(row);
-  }
-  //console.log("rows:", rows);
+  	// add volumes for this timestamp to the row
+		for (var j = 0; j < rowIdx.length; j++) {
+			var idx = rowIdx[j];  // index of the db row whose timestamp value to read
+			var volume = parseInt(dbRows[idx][keys[i]]);
+			volume = (volume == 0) ? 10000 : volume;  // transform 0s to 10 000 and -1s to nulls
+			volume = (volume == -1) ? null : volume;
+			row.push(volume);
+		}
+		data.push(row);
+	}
+	//console.log("data:", data);
+
   google.charts.setOnLoadCallback(function() {
-  	 drawTrendHistory(rows, trendNames);
+  	 drawTrendHistory(data, trendNames, ticks, response["timestamp"]);
   });
 }
 
@@ -286,24 +342,32 @@ function createImgLink(src, url, height) {
   return a;
 }
 
-/* Format a trends.db column timestamp to UNIX timestamp. Assume date is 
-current month.
+/* Format a trends.db column timestamp to UNIX timestamp by comparing time value
+to current timestamp.
 Arg:
 	timestamp (string): A column header in trends.db, eg. "d_27_1230"
+	currentDate (Date): the current time as a Date to compare each header to
 */
-function formatTimestamp(timestamp) {
+function formatTimestamp(header, currentDate) {
 	// parse timestamp to date and time portions
-	var time = timestamp.split("_");
+	var time = header.split("_");
 	var date = parseInt(time[1]);
-  var hour = parseInt(time[2].slice(0, 2));  // hour part in the timestamp
+  var hour = parseInt(time[2].slice(0, 2));  // hour part of the header
   var minutes = parseInt(time[2].slice(2, 4));
 
-  // Create a Date object from the timestamp.
-  var now = new Date();
-  var d = new Date(now.getFullYear(), now.getMonth(), date, hour, minutes);
+  // Copy currentDate to a temp Date
+  var ts = new Date(currentDate.getTime());
+  ts.setHours(hour);
+  ts.setMinutes(minutes);
+  ts.setDate(date);
 
-  // Return timestamp in milliseconds.
-  return d.getTime();
+  // If ts is in the future due to a day change between months
+  // set month to the previous month.
+  if (ts > currentDate) {
+  	ts.setMonth(ts.getMonth() - 1);  // setMonth(-1) results to December of the previous year  
+  }
+
+  return ts;
 }
 
 /* Debug function: show tweet volume on the trend list. */
