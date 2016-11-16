@@ -1,5 +1,5 @@
 /* Javascript functions for binding tweets with the map
-30.10.2016
+16.11.2016
 */
 
 
@@ -341,8 +341,7 @@ function addTweetToSideBar(tweet, label, color) {
   var metadata = document.createElement("div");
   metadata.className = "tweet-metadata";
 
-  // Create an <img> for control elements:
-  // locate map marker
+  // <img> for locating the map marker
   var icon = document.createElement("img");
   icon.setAttribute("src", "http://maps.google.com/mapfiles/marker" + color + label + ".png");
   icon.setAttribute("alt", "locate this tweet");
@@ -355,7 +354,7 @@ function addTweetToSideBar(tweet, label, color) {
     document.getElementById("tweet-card-header").innerHTML = "Selected tweet";
   });
 
-  // plot timeline and show details on the lower bar
+  // <img> for fetching timeline
   var timeline = document.createElement("img");
   timeline.setAttribute("src", "./img/location-map-marker-icons_red.png");
   timeline.setAttribute("alt", "plot timeline");
@@ -368,6 +367,21 @@ function addTweetToSideBar(tweet, label, color) {
     clearDetails();
     requestFile("./php/fetch_tweets.php", "?user="+tweet["user"]["screen_name"], processTimeline);
   });
+
+  // <img> for text to speech option, (only if tweet language has a voice option)
+  var lang = langCodeToResponsiveVoiceCode(tweet["lang"]);
+  if (lang) {
+    var speech = document.createElement("img");
+    speech.setAttribute("src", "./img/speaker.png");
+    speech.setAttribute("alt", "text-to-speech");
+    speech.setAttribute("class", "meta-icon");
+
+    // Event listener: tweet text to speech
+    speech.addEventListener("click", function() {
+      //var lang = langCodeToResponsiveVoiceCode(tweet["lang"]);
+      responsiveVoice.speak(tweet["text"], lang);
+    });
+  }
 
   // <p> for location
   var location = document.createElement("p");
@@ -393,6 +407,9 @@ function addTweetToSideBar(tweet, label, color) {
   metadata.appendChild(location);
   metadata.appendChild(source);
   metadata.appendChild(timeline);
+  if (lang) {  // add text-to-speech icon only when available
+    metadata.appendChild(speech);
+  }
 
   // Attach the metadata section to the top level <div>
   div.appendChild(metadata);

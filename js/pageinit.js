@@ -1,7 +1,7 @@
 /* Functions for initializing the page and some general, non page
 mode dependant, functions
 
-30.10.2016
+16.11.2016
 */
 
 var map;
@@ -349,8 +349,17 @@ function about() {
       </p>\
       <p class=\"about\">Once tweets are displayed, click <img src=\"http://maps.google.com/mapfiles/marker.png\" alt=\"marker icon\" height=\"28\"> to\
       show tweet details and <img src=\"./img/location-map-marker-icons_red.png\" alt=\"timeline icon\" height=\"28\"> to\
-      show timeline details on the lower bar.</p>\
-      <img src=\"./img/tweet_example.png\" alt=\"example result\" width=\"320\" style=\"margin-left: 20px\">";
+      show timeline details on the lower bar. For compatible tweet languages <img src=\"./img/speaker.png\" alt=\"timeline icon\" height=\"28\">\
+      provides a text-to-speech option.</p>\
+      <img src=\"./img/tweet_example2.png\" alt=\"example result\" width=\"320\" style=\"margin-left: 20px\">\
+      <hr/>\
+      <div class=\"about\" style=\"width:300px;vertical-align:top;font-family: Arial;font-size:9pt;line-height: normal\">\
+      <a rel=\"license\" href=\"//responsivevoice.org/\"><img title=\"ResponsiveVoice Text To Speech\" src=\"https://responsivevoice.org/wp-content/uploads/2014/08/120x31.png\"\
+      style=\"float:left;padding-right:2px\" /></a><span xmlns:dct=\"http://purl.org/dc/terms/\" property=\"dct:title\">\
+      <a href=\"//responsivevoice.org/\" target=\"_blank\" title=\"ResponsiveVoice Text To Speech\">ResponsiveVoice</a></span>\
+      used under <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-nc-nd/4.0/\"\
+      title=\"Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License\">Non-Commercial License</a></div>\
+      <div style=\"clear:both;\">&nbsp;</div>";
   }
   else {
     msg = "<h2 class=\"about\">Trend analyser</h2>\
@@ -386,7 +395,7 @@ Args:
   str (string): the string to truncate
   len (int): the truncated length, including "..."
 */
-function truncate(str, len = 16) {
+function truncate(str, len = 20) {
   if (!str) {
     return "NA";
   }
@@ -599,6 +608,44 @@ function stringToEmojiArray(str) {
     }
   }
   return arr;
+}
+
+/* Convert a Twitter language code to format accepted by ResponsiveVoice.JS. */
+function langCodeToResponsiveVoiceCode(code) {
+  var mapping = [
+    ["en", "UK English Female"],
+    ["es", "Spanish Female"],
+    ["fr", "French Female"],
+    ["de", "Deutsch Female"],
+    ["nl", "Dutch Female"],
+    ["sv", "Swedish Female"],
+    ["fi", "Finnish Female"],
+    ["no", "Norwegian Female"],
+    ["ru", "Russian Female"],
+    ["zh", "Chinese Female"],
+    ["ja", "Japanese Female"],
+    ["hi", "Hindi Female"],
+    ["ar", "Arabic Male"],
+    ["vi", "Vietnamese Male"],
+    ["pt", "Portuguese Female"],
+    ["ko", "Korean Female"],
+    ["is", "Icelandic Male"],
+    ["tr", "Turkish Female"],
+    ["sw", "Swahili Male"],
+    ["pl", "Polish Female"],
+    ["it", "Italian Female"],
+    ["hu", "Hungarian Female"],
+    ["el", "Greek Female"]
+  ]
+
+  // Find item whose first element matches the input.
+  for (var i = 0; i < mapping.length; i++) {
+    if (mapping[i][0] == code) {
+      return mapping[i][1];
+    }
+  }
+  return null;  // no match found
+
 }
 
 

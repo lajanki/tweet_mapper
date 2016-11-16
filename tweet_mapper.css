@@ -113,12 +113,13 @@ p.about {
 
 .meta-icon {
 	height: 25px;
-	padding-right: 30px;
+	padding-right: 15px;
 	float:right;
 }
 
 .meta-text {
 	float: left;
+	font-size: 12px;
 	padding-top: 10px;
 	padding-right: 10px;
 }

@@ -12,7 +12,7 @@ In trend analyzer mode users can
 Tweet volumes are only shown for worldwide data, as the API doesn't seem to track
 country specific values. Perhaps thisl will change someday, who knows?
 
-24.10.2016
+16.11.2016
 -->
 
 <html>
@@ -23,18 +23,20 @@ country specific values. Perhaps thisl will change someday, who knows?
     <link rel="stylesheet" type="text/css" href="tweet_mapper.css">
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon.ico">
 
-
     <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
     <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 
     <!-- Google Charts -->
     <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    
-   
-    <script src="./js/locator.js" ></script>  <!-- load locator script -->
-    <script src="./js/trends.js" ></script>  <!-- trend script, should come after locator (does it actually matter?) -->
-    <script src="./js/pageinit.js" ></script>
+
+    <!-- https://responsivevoice.org text to speech API -->
+    <script src="http://code.responsivevoice.org/responsivevoice.js"></script>
+
+    <!-- Load scripts for the Google Map and trend chart -->
+    <script src="./js/locator.js" ></script>
+    <script src="./js/trends.js" ></script> 
+    <script src="./js/pageinit.js" ></script>  <!-- one time init functions and misc. helper functions -->
   </head>
 
   <body>
@@ -77,7 +79,8 @@ country specific values. Perhaps thisl will change someday, who knows?
           </div>
 
           <div id="tweet-card-container">
-            <p id="tweet-card-header" class="stats-header">Selected/Typical tweet</p><a id="typical-help-button" href="#">What's this?</a>
+            <p id="tweet-card-header" class="stats-header">Selected/Typical tweet</p>
+            <a id="typical-help-button" href="#">What's this?</a>
             <div id="tweet-card"></div>
           </div>
 
@@ -131,7 +134,7 @@ country specific values. Perhaps thisl will change someday, who knows?
 
     <!-- Load Twitter and Google widgets -->
     <script id="twitter-wjs" type="text/javascript" async defer src="//platform.twitter.com/widgets.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=APIKEY=init" defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=APIKEY&callback=init" defer></script>
   </body>
 </html>
 
