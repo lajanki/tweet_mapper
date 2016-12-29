@@ -1,11 +1,21 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+"""
+Functions to fetch Twitter trend data and user timelines.
 
-# Functions to fetch Twitter trend data and user timelines.
-# Trends can be stored as both json for the most recent data only (overwriting previous),
-# or to a database for permanent storage.
-# 17.10.2016
+Trends can be stored as both json for the most recent data only (overwriting previous),
+or to a database for permanent storage.
+
+changelog:
+29.12.2016
+ * Changed the way trend data is fetched to reflect updated API rate limits: trending data for
+   all countries is now fetched in a single take. The database for worldwide trends is updated
+   whenever worlwide data is fetched.
+
+17.10.2016
+ * Initial version
+"""
 
 import twython
 import json
@@ -18,7 +28,10 @@ import requests
 import os
 
 
-# load keys
+PATH = "/home/pi/python/tweet_mapper/backend/"
+os.chdir(PATH)
+
+# little_youtube keys
 with open("./keys.json") as f:
 	keys = json.load(f)
 
@@ -28,8 +41,10 @@ OAUTH_TOKEN = keys["TWITTER_OAUTH_TOKEN"]
 OAUTH_SECRET = keys["TWITTER_OAUTH_SECRET"]
 BEARER_TOKEN = keys["TWITTER_BEARER_TOKEN"]
 
-# Create a Twitter object using bearer token
+# Connect to Twitter using a bearer token and application authentication
 twitter = twython.Twython(API_KEY, access_token = BEARER_TOKEN)
+#twitter = twython.Twython(API_KEY, API_SECRET, OAUTH_TOKEN, OAUTH_SECRET)
+
 
 ###############################################################################
 # Fetch tweets #
@@ -45,7 +60,6 @@ def get_timeline(screen_name, n):
 
 
 def tweets_by_loc(lat, lng, r, n, q = " "):
-	"""Fetch tweets by lat, long coordinates."""
 	loc = "{},{},{}km".format(lat, lng ,r)
 	tweets = twitter.search(q = q, geocode = loc, count = n, include_entities = False)
 
@@ -88,8 +102,40 @@ def fetch_available_trend_locations(countries_only):
 		json.dump(d, f, indent = 4, separators=(',', ': '))
 
 
+def fetch_trends():
+	"""Fetch current trending data for the locations listed in available_trends.json."""
+	with open("./available_trends.json") as f:
+		available = json.load(f)
+
+	trend_data = {}
+	for loc in available["locations"]:
+		woeid =  loc["woeid"]
+		name = loc["name"]
+
+		print "Fetching trends for", name
+		try:
+			trends = twitter.get_place_trends(id = woeid)
+			trend_data[name] = trends
+
+			# store worldwide trends to the database
+			if woeid == 1:
+				db_store_trends(trends)
+
+		except twython.TwythonRateLimitError as e:
+			print e
+			print "Skipping rest of this batch."
+			break
+
+	# Store the data to trends.json
+	with open("./trends.json", "w") as f:
+		json.dump(trend_data, f, indent = 4, separators = (',', ': '), sort_keys = True)
+
+
 def fetch_trend_batch():
-	"""Fetch the trending data for the next set of 15 locations as listed in available_trends.json."""
+	"""Fetch the trending data for the next set of 15 locations as listed in available_trends.json.
+	DEPRECATED: Twitter API rate limits have increased to 75 calls / 15 minutes as of ~ November 2016.
+				There's no more need to fetch trending data in batches. See fetch_trends above.
+	"""
 	with open("./available_trends.json") as f:
 		available = json.load(f)
 
@@ -97,7 +143,7 @@ def fetch_trend_batch():
 	index = available["index"]
 	batch = available["locations"][index: index + 15]
 
-	# Fetch the trends
+	# open existing trend file
 	try:
 		with open("./trends.json") as f:
 			current_trends = json.load(f)
@@ -108,7 +154,6 @@ def fetch_trend_batch():
 	for idx, loc in enumerate(batch):
 		woeid =  loc["woeid"]
 		name = loc["name"]
-
 
 		print "Fetching trends for", name
 		try:
@@ -136,8 +181,10 @@ def fetch_trend_batch():
 		json.dump(current_trends, f, indent = 4, separators = (',', ': '), sort_keys = True)
 
 
-def db_store_trends():
+def db_store_trends(trend_data):
 	"""Store worldwide trends to trends.db database for more permanent storage.
+	Arg:
+		trend_data (dict) the API response containing current worldwide trends
 	
 	database format codes:
 		tables: w_%W_%y  (ie. w_(week)_(year))
@@ -148,15 +195,16 @@ def db_store_trends():
 	year = d.strftime("%y")
 	week = d.strftime("%W")
 	"""
-	data = twitter.get_place_trends(id = 1)  # fetch worlride trends from Twitter
-	
+
 	months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 
+	"""
 	# Store trend data to database:
-	# Determine the corrcet tablename from current data (tablenames are in the form of oct16, nov16 etc.).
-	year = time.strftime("%y") # year 2 digit format
-	month_idx = int(time.strftime("%m")) # month as [1, 12]
+	# Determine the correct tablename from current data (tablenames are in the form of oct16, nov16 etc.).
+	year = time.strftime("%y") # year in 2 digit format
+	month_idx = int(time.strftime("%m")) # month in [1, 12]
 	table = months[month_idx - 1] + str(year)
+	"""
 
 
 	# Format a table name
@@ -182,7 +230,7 @@ def db_store_trends():
 
 		# Populate the new column:
 		# Try to select each trend to see if it already exists in the table
-		for trend in data[0]["trends"]:
+		for trend in trend_data[0]["trends"]:
 			name = trend["name"]
 			volume = trend["tweet_volume"]
 			if not volume: # fill None values with zeros
@@ -197,7 +245,7 @@ def db_store_trends():
 				query = "UPDATE {} SET {} = ? WHERE trend = ?".format(scrub(table), col)
 				cur.execute(query, (volume, name))
 
-			# add new row
+			# ...else add a new row
 			else:
 				query = "INSERT INTO {} (trend, {}) VALUES (?, ?)".format(scrub(table), col)
 				cur.execute(query, (name, volume))
@@ -273,15 +321,14 @@ def measure_tweets_by_loc():
 ########
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description = "Pulls Twitter trending data Twitter API")
-	parser.add_argument("--rates", help = "Show Twitter API call rates", action = "store_true")
-	parser.add_argument("--fetch-trend-locations", help = "Fetch available trend location data from Twitter and store to file. Add \"country\" to store the data only for countries",
+	parser = argparse.ArgumentParser(description = "Pulls Twitter trending data from Twitter API to a local json file.")
+	parser.add_argument("--rates", help = "Show Twitter API call rates.", action = "store_true")
+	parser.add_argument("--fetch-trend-locations", help = "Fetch available trend location data from Twitter and store to file. Add \"country\" to store the data only for countries.",
 		nargs = "?",
 		const = 1,	# add a constant value for determining whether to fetch only country data
 		metavar = "countries_only"
 	)
-	parser.add_argument("--fetch-trends", help = "Fetch trend data for the next batch of locations", action = "store_true")
-	parser.add_argument("--store-trends", help = "Fetch worldwide trend data and store it to trends.db", action = "store_true")
+	parser.add_argument("--fetch-trends", help = "Fetch trend data for the countries listed in available_trends.json.", action = "store_true")
 	args = parser.parse_args()
 	#print args
 
@@ -292,11 +339,30 @@ if __name__ == "__main__":
 		fetch_available_trend_locations(countries_only)
 
 	elif args.fetch_trends:
-		fetch_trend_batch()
-
-	elif args.store_trends:
-		db_store_trends()
+		fetch_trends()
 
 	else:
 		get_rate_status()
 	
+
+	"""
+	# serach for tweets from given coordinates using " " as a search term
+	tweets = tweets_by_loc(39.28, -76.63, 5, 100)
+
+	# choose a random tweet and get the users timeline
+	t = random.choice(tweets)
+	screen_name = t["user"]["screen_name"]
+	print screen_name
+	print "https://twitter.com/" + screen_name
+
+	tweets = get_timeline(screen_name, 30)
+	for t in tweets:
+		print t["text"]
+		print "source:", t["source"]
+		if t["coordinates"]:
+			print "coords:", t["coordinates"]["coordinates"]
+		if t["place"]:
+			print "place:", t["place"]["full_name"]
+			print "bbox:", t["place"]["bounding_box"]["coordinates"]
+		print
+	"""
