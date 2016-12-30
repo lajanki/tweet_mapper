@@ -102,8 +102,12 @@ def fetch_available_trend_locations(countries_only):
 		json.dump(d, f, indent = 4, separators=(',', ': '))
 
 
-def fetch_trends():
-	"""Fetch current trending data for the locations listed in available_trends.json."""
+def fetch_trends(cache_only = False):
+	"""Fetch current trending data for the locations listed in available_trends.json and
+	optionally update the wordlwide database.
+	Arg:
+		cache_only (boolean): whether to skip updating the database and only update trends.json
+	"""
 	with open("./available_trends.json") as f:
 		available = json.load(f)
 
@@ -118,7 +122,8 @@ def fetch_trends():
 			trend_data[name] = trends
 
 			# store worldwide trends to the database
-			if woeid == 1:
+			if woeid == 1 and not cache_only:
+				print "Updating the database..."
 				db_store_trends(trends)
 
 		except twython.TwythonRateLimitError as e:
@@ -323,26 +328,37 @@ def measure_tweets_by_loc():
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description = "Pulls Twitter trending data from Twitter API to a local json file.")
 	parser.add_argument("--rates", help = "Show Twitter API call rates.", action = "store_true")
-	parser.add_argument("--fetch-trend-locations", help = "Fetch available trend location data from Twitter and store to file. Add \"country\" to store the data only for countries.",
+	parser.add_argument("--fetch-trend-locations", help = "Fetch locations for which Twitter has trending information and store to available_trends.json. Use [countries-only]\
+		to skip city locations.",
 		nargs = "?",
-		const = 1,	# add a constant value for determining whether to fetch only country data
-		metavar = "countries_only"
+		const = True,	# sets this argument's value to True if no optional parameter is present
+		metavar = "countries-only"
 	)
-	parser.add_argument("--fetch-trends", help = "Fetch trend data for the countries listed in available_trends.json.", action = "store_true")
+	parser.add_argument("--fetch-trends", help = "Update trends.json and the worldwide database at trends.db by pulling trending data from Twitter. Use [cache-only] to skip updating the database.",
+		nargs = "?",
+		const = True, # set value to True if --fetch-trends is used without an argument
+		metavar = "cache-only"
+	)
 	args = parser.parse_args()
 	#print args
 
+	
 	if args.fetch_trend_locations:
 		countries_only = False
-		if args.fetch_trend_locations != 1:
+		if args.fetch_trend_locations != True:
 			countries_only = True
 		fetch_available_trend_locations(countries_only)
 
 	elif args.fetch_trends:
-		fetch_trends()
+		cache_only = False
+		if args.fetch_trends != True: # argument is not the default value of True, don't update the db
+			cache_only = True
+		fetch_trends(cache_only)
 
 	else:
 		get_rate_status()
+
+	
 	
 
 	"""
