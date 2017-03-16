@@ -28,10 +28,7 @@ import requests
 import os
 
 
-PATH = "/home/pi/python/tweet_mapper/backend/"
-os.chdir(PATH)
 
-# little_youtube keys
 with open("./keys.json") as f:
 	keys = json.load(f)
 
@@ -358,27 +355,3 @@ if __name__ == "__main__":
 	else:
 		get_rate_status()
 
-	
-	
-
-	"""
-	# serach for tweets from given coordinates using " " as a search term
-	tweets = tweets_by_loc(39.28, -76.63, 5, 100)
-
-	# choose a random tweet and get the users timeline
-	t = random.choice(tweets)
-	screen_name = t["user"]["screen_name"]
-	print screen_name
-	print "https://twitter.com/" + screen_name
-
-	tweets = get_timeline(screen_name, 30)
-	for t in tweets:
-		print t["text"]
-		print "source:", t["source"]
-		if t["coordinates"]:
-			print "coords:", t["coordinates"]["coordinates"]
-		if t["place"]:
-			print "place:", t["place"]["full_name"]
-			print "bbox:", t["place"]["bounding_box"]["coordinates"]
-		print
-	"""
