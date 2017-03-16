@@ -1,4 +1,4 @@
-#[tweet_mapper](http://lajanki.mbnet.fi/tweet_mapper/)
+# [tweet_mapper](http://lajanki.mbnet.fi/tweet_mapper/)
 Website for connecting Twitter search with Google maps
 
 Shows tweets on a Google map and Twitter trending topics in a world chart.
@@ -30,6 +30,6 @@ Trend data is queried in a cache based system. The Python script in backend/twee
  All user interaction is refered to the local cache for speed and to avoid unnecessary API usage.
  
 ### Requirements
- - [Twython](https://twython.readthedocs.io/en/latest/) for backend/tweet_mapper.py, and
- - Twitter application keys to store in backend/keys.json, (https://apps.twitter.com/)
- - Google Maps JavaScript API keys (https://developers.google.com/maps/documentation/javascript/get-api-key) 
+ - [Twython](https://twython.readthedocs.io/en/latest/) for backend/tweet_mapper.py,
+ - Twitter application [keys](https://apps.twitter.com/) to store in backend/keys.json, and
+ - Google Maps JavaScript API [key](https://developers.google.com/maps/documentation/javascript/get-api-key) 
